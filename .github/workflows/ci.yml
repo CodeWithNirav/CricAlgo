@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: cricalgo_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:latest
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Run linting
+      run: |
+        ruff check app/ tests/
+        black --check app/ tests/
+    
+    - name: Run tests
+      run: |
+        pytest tests/ -v
+      env:
+        DATABASE_URL: postgresql+asyncpg://postgres:password@localhost:5432/cricalgo_test
+        REDIS_URL: redis://localhost:6379/0
+        APP_ENV: test
+        DEBUG: false
+    
+    - name: Build Docker image
+      run: |
+        docker build -t cricalgo:test .
+    
+    - name: Test Docker container
+      run: |
+        docker run -d --name cricalgo-test -p 8000:8000 cricalgo:test
+        sleep 10
+        curl -f http://localhost:8000/api/v1/health || exit 1
+        docker stop cricalgo-test
+        docker rm cricalgo-test
