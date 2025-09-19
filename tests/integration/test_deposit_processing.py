@@ -75,7 +75,7 @@ class TestDepositProcessing:
                     "metadata": {}
                 }
                 
-                response = await test_client.post("/api/v1/webhook/bep20", json=webhook_payload)
+                response = await test_client.post("/api/v1/webhooks/bep20", json=webhook_payload)
                 
                 assert response.status_code == 200
                 data = response.json()
@@ -112,7 +112,7 @@ class TestDepositProcessing:
                     "metadata": {}
                 }
                 
-                response = await test_client.post("/api/v1/webhook/bep20", json=webhook_payload)
+                response = await test_client.post("/api/v1/webhooks/bep20", json=webhook_payload)
                 
                 assert response.status_code == 200
                 data = response.json()
@@ -149,7 +149,7 @@ class TestDepositProcessing:
                     "metadata": {}
                 }
                 
-                response = await test_client.post("/api/v1/webhook/bep20", json=webhook_payload)
+                response = await test_client.post("/api/v1/webhooks/bep20", json=webhook_payload)
                 
                 assert response.status_code == 200
                 data = response.json()
@@ -267,7 +267,7 @@ class TestDepositProcessing:
                     "metadata": {}
                 }
                 
-                response = await test_client.post("/api/v1/webhook/bep20", json=webhook_payload)
+                response = await test_client.post("/api/v1/webhooks/bep20", json=webhook_payload)
                 
                 assert response.status_code == 200
                 data = response.json()

@@ -242,10 +242,11 @@ async def test_user(async_session: AsyncSession) -> User:
     """Create a test user with wallet."""
     import time
     unique_telegram_id = int(time.time() * 1000) % 1000000  # Use timestamp for uniqueness
+    unique_username = f"testuser_{unique_telegram_id}"  # Make username unique too
     user = await create_user(
         session=async_session,
         telegram_id=unique_telegram_id,
-        username="testuser",
+        username=unique_username,
         status=UserStatus.ACTIVE.value
     )
     

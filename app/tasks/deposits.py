@@ -137,7 +137,17 @@ def process_deposit(self, tx_id: str):
         
         # Run async function
         import asyncio
-        return asyncio.run(_process())
+        try:
+            # Try to get the current event loop
+            loop = asyncio.get_running_loop()
+            # If we're in an async context, create a new event loop in a thread
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, _process())
+                return future.result()
+        except RuntimeError:
+            # No event loop running, use asyncio.run()
+            return asyncio.run(_process())
         
     except Exception as exc:
         logger.error(f"Error processing deposit {tx_id}: {exc}")
