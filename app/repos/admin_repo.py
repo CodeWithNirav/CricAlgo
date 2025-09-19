@@ -22,8 +22,18 @@ async def is_admin_user(session: AsyncSession, user_id: UUID) -> bool:
     Returns:
         True if user is admin, False otherwise
     """
+    # Since Admin and User are separate models, we need to check by username
+    # First get the user, then check if there's an admin with the same username
+    from app.repos.user_repo import get_user_by_id
+    
+    user = await get_user_by_id(session, user_id)
+    if not user:
+        return False
+    
+    # Check if there's an admin with the same username (removing the "admin_" prefix)
+    admin_username = user.username.replace("admin_", "")
     result = await session.execute(
-        select(Admin).where(Admin.user_id == user_id)
+        select(Admin).where(Admin.username == admin_username)
     )
     admin = result.scalar_one_or_none()
     return admin is not None
@@ -58,6 +68,23 @@ async def create_admin_user(
     return admin
 
 
+async def get_admin_by_username(session: AsyncSession, username: str) -> Optional[Admin]:
+    """
+    Get admin by username.
+    
+    Args:
+        session: Database session
+        username: Admin username
+    
+    Returns:
+        Admin instance or None if not found
+    """
+    result = await session.execute(
+        select(Admin).where(Admin.username == username)
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_admin_by_user_id(session: AsyncSession, user_id: UUID) -> Optional[Admin]:
     """
     Get admin by user ID.
@@ -69,8 +96,17 @@ async def get_admin_by_user_id(session: AsyncSession, user_id: UUID) -> Optional
     Returns:
         Admin instance or None if not found
     """
+    # Since Admin and User are separate models, we need to check by username
+    from app.repos.user_repo import get_user_by_id
+    
+    user = await get_user_by_id(session, user_id)
+    if not user:
+        return None
+    
+    # Check if there's an admin with the same username (removing the "admin_" prefix)
+    admin_username = user.username.replace("admin_", "")
     result = await session.execute(
-        select(Admin).where(Admin.user_id == user_id)
+        select(Admin).where(Admin.username == admin_username)
     )
     return result.scalar_one_or_none()
 

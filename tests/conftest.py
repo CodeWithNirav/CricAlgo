@@ -25,7 +25,7 @@ from uuid import uuid4
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.pool import StaticPool
 from sqlalchemy import text
-import aioredis
+import redis.asyncio as redis
 from httpx import AsyncClient
 from fastapi import FastAPI
 
@@ -176,16 +176,16 @@ async def redis_client(redis_url):
     # Use a separate Redis database for tests
     test_redis_url = redis_url.replace("/0", "/1")  # Use DB 1 for tests
     
-    redis = aioredis.from_url(test_redis_url, decode_responses=True)
+    redis_client = redis.from_url(test_redis_url, decode_responses=True)
     
     # Flush test database before test
-    await redis.flushdb()
+    await redis_client.flushdb()
     
-    yield redis
+    yield redis_client
     
     # Flush test database after test
-    await redis.flushdb()
-    await redis.close()
+    await redis_client.flushdb()
+    await redis_client.close()
 
 
 @pytest.fixture

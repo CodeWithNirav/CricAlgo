@@ -8,10 +8,10 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the fake blockchain service
-COPY tests/e2e/fake_blockchain_service.py .
+COPY tests/ ./tests/
 
 # Expose port
 EXPOSE 8081
 
 # Run the fake blockchain service
-CMD ["python", "fake_blockchain_service.py"]
+CMD ["python", "tests/e2e/fake_blockchain_service.py"]

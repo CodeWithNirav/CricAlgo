@@ -5,13 +5,13 @@ Redis-specific test fixtures and utilities
 import json
 import asyncio
 from typing import Any, Dict, Optional
-import aioredis
+import redis.asyncio as redis
 
 
 class RedisTestHelper:
     """Helper class for Redis test operations."""
     
-    def __init__(self, redis_client: aioredis.Redis):
+    def __init__(self, redis_client: redis.Redis):
         self.redis = redis_client
     
     async def set_json(self, key: str, value: Dict[str, Any], ttl: Optional[int] = None) -> bool:
@@ -67,7 +67,7 @@ class RedisTestHelper:
         return await self.redis.keys(pattern)
 
 
-async def create_redis_test_helper(redis_client: aioredis.Redis) -> RedisTestHelper:
+async def create_redis_test_helper(redis_client: redis.Redis) -> RedisTestHelper:
     """Create a Redis test helper instance."""
     return RedisTestHelper(redis_client)
 

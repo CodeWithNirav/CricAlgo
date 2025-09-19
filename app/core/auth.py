@@ -95,7 +95,7 @@ async def get_current_user(
             detail="User not found"
         )
     
-    if user.status != UserStatus.ACTIVE:
+    if user.status != UserStatus.ACTIVE.value:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User account is not active"

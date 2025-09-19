@@ -41,6 +41,10 @@ services:
       - APP_ENV=testing
       - DEBUG=false
       - WEBHOOK_SECRET=test-secret-key
+      - PYTHONUTF8=1
+      - PYTHONIOENCODING=utf-8
+      - LANG=C.UTF-8
+      - LC_ALL=C.UTF-8
     depends_on:
       postgres:
         condition: service_healthy
@@ -51,6 +55,28 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     ports:
       - "8001:8000"  # Different port to avoid conflicts
+
+  # Celery worker for background tasks
+  worker:
+    build: .
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:password@postgres:5432/cricalgo_test
+      - REDIS_URL=redis://redis:6379/1
+      - APP_ENV=testing
+      - DEBUG=false
+      - WEBHOOK_SECRET=test-secret-key
+      - PYTHONUTF8=1
+      - PYTHONIOENCODING=utf-8
+      - LANG=C.UTF-8
+      - LC_ALL=C.UTF-8
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    command: celery -A app.celery_app.celery worker --loglevel=info --concurrency=2
 
   # Fake blockchain service for E2E tests
   fake-blockchain:

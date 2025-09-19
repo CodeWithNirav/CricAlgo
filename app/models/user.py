@@ -17,7 +17,7 @@ class User(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     telegram_id = Column(BigInteger, nullable=False, unique=True)
     username = Column(String(48), nullable=False, unique=True)
-    status = Column(ENUM(UserStatus, name='user_status'), nullable=False, default=UserStatus.ACTIVE)
+    status = Column(ENUM('active', 'frozen', 'disabled', name='user_status'), nullable=False, default='active')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     def __repr__(self):

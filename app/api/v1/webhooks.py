@@ -19,7 +19,7 @@ from app.repos.transaction_repo import get_transactions_by_user, update_transact
 from app.repos.wallet_repo import get_wallet_for_user, update_balances_atomic
 from app.repos.user_repo import get_user_by_id
 from app.tasks.tasks import process_deposit
-from tests.fixtures.redis import RedisTestHelper
+from app.core.redis_client import get_redis_helper, get_redis
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -86,7 +86,7 @@ async def check_webhook_idempotency(redis_client, tx_hash: str) -> bool:
         True if already processed, False otherwise
     """
     try:
-        helper = RedisTestHelper(redis_client)
+        helper = await get_redis_helper()
         return await helper.check_idempotency_key(tx_hash)
     except Exception as e:
         logger.error(f"Error checking idempotency for {tx_hash}: {e}")
@@ -105,7 +105,7 @@ async def mark_webhook_processed(redis_client, tx_hash: str) -> bool:
         True if marked successfully, False otherwise
     """
     try:
-        helper = RedisTestHelper(redis_client)
+        helper = await get_redis_helper()
         return await helper.set_idempotency_key(tx_hash, ttl=3600)
     except Exception as e:
         logger.error(f"Error marking {tx_hash} as processed: {e}")
@@ -137,8 +137,7 @@ async def receive_bep20_webhook(
             )
         
         # Check idempotency
-        # TODO: Get Redis client from dependency injection
-        redis_client = None  # This would be injected in a real implementation
+        redis_client = await get_redis()
         if redis_client:
             if await check_webhook_idempotency(redis_client, tx_hash):
                 logger.info(f"Transaction {tx_hash} already processed, skipping")

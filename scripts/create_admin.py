@@ -23,8 +23,12 @@ import asyncio
 import os
 import secrets
 import string
+import sys
 from decimal import Decimal
 from typing import Optional
+
+# Ensure UTF-8 encoding
+sys.stdout.reconfigure(encoding='utf-8')
 
 import pyotp
 from passlib.context import CryptContext
@@ -105,20 +109,20 @@ async def main():
     
     # Validate required environment variables
     if not username:
-        print("❌ Error: SEED_ADMIN_USERNAME environment variable is required")
+        print("ERROR: SEED_ADMIN_USERNAME environment variable is required")
         print("   Set it with: export SEED_ADMIN_USERNAME='admin'")
         return
     
     if not email:
-        print("❌ Error: SEED_ADMIN_EMAIL environment variable is required")
+        print("ERROR: SEED_ADMIN_EMAIL environment variable is required")
         print("   Set it with: export SEED_ADMIN_EMAIL='admin@cricalgo.com'")
         return
     
     # Generate password if not provided
     if not password:
         password = generate_secure_password()
-        print(f"🔐 Generated secure password: {password}")
-        print("⚠️  IMPORTANT: Save this password and change it after first login!")
+        print(f"Generated secure password: {password}")
+        print("IMPORTANT: Save this password and change it after first login!")
         print()
     
     print(f"Creating admin user: {username}")
@@ -128,21 +132,31 @@ async def main():
     try:
         # Create admin user
         async with get_db() as session:
-            admin = await create_admin_user(session, username, email, password)
-            
-            print("✅ Admin user created successfully!")
-            print(f"   Admin ID: {admin.id}")
-            print(f"   Username: {admin.username}")
-            print(f"   Email: {admin.email}")
-            print()
+            # Check if admin already exists
+            from app.repos.admin_repo import get_admin_by_username
+            existing_admin = await get_admin_by_username(session, username)
+            if existing_admin:
+                print("SUCCESS: Admin user already exists!")
+                print(f"   Admin ID: {existing_admin.id}")
+                print(f"   Username: {existing_admin.username}")
+                print(f"   Email: {existing_admin.email}")
+                print()
+                admin = existing_admin
+            else:
+                admin = await create_admin_user(session, username, email, password)
+                print("SUCCESS: Admin user created successfully!")
+                print(f"   Admin ID: {admin.id}")
+                print(f"   Username: {admin.username}")
+                print(f"   Email: {admin.email}")
+                print()
             
             # Generate TOTP URL
             totp_url = generate_totp_url(username, admin.totp_secret)
-            print("🔐 2FA Setup:")
+            print("2FA Setup:")
             print(f"   TOTP Secret: {admin.totp_secret}")
             print(f"   QR Code URL: {totp_url}")
             print()
-            print("📱 To set up 2FA:")
+            print("To set up 2FA:")
             print("   1. Install an authenticator app (Google Authenticator, Authy, etc.)")
             print("   2. Scan the QR code or enter the secret manually")
             print("   3. Use the generated codes to log in")
@@ -154,37 +168,37 @@ async def main():
                     session=session,
                     telegram_id=0,  # Special admin telegram ID
                     username=f"admin_{username}",
-                    status=UserStatus.ACTIVE
+                    status=UserStatus.ACTIVE.value
                 )
                 
                 # Create wallet for the admin user
                 await create_wallet_for_user(session, user.id)
                 
-                print("✅ Admin user account and wallet created!")
+                print("SUCCESS: Admin user account and wallet created!")
                 print(f"   User ID: {user.id}")
                 print(f"   Telegram ID: {user.telegram_id}")
                 
             except Exception as e:
-                print(f"⚠️  Warning: Could not create user account for admin: {e}")
+                print(f"WARNING: Could not create user account for admin: {e}")
             
             print()
-            print("🎉 Setup complete! You can now log in with:")
+            print("Setup complete! You can now log in with:")
             print(f"   Username: {username}")
             print(f"   Password: {password}")
             
     except Exception as e:
-        print(f"❌ Error creating admin user: {e}")
+        print(f"ERROR creating admin user: {e}")
         return
 
 
 if __name__ == "__main__":
-    print("🚀 CricAlgo Admin User Creation Script")
+    print("CricAlgo Admin User Creation Script")
     print("=" * 50)
     print()
     
     # Check if we're in the right directory
     if not os.path.exists("app"):
-        print("❌ Error: Please run this script from the project root directory")
+        print("ERROR: Please run this script from the project root directory")
         print("   Current directory should contain the 'app' folder")
         exit(1)
     

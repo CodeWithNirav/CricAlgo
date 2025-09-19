@@ -8,9 +8,9 @@ from typing import Optional, Dict, Any
 from fastapi import Request, HTTPException, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+import redis.asyncio as redis
 
 from app.core.config import settings
-from tests.fixtures.redis import RedisTestHelper
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -22,7 +22,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, redis_client=None):
         super().__init__(app)
         self.redis_client = redis_client
-        self.redis_helper = RedisTestHelper(redis_client) if redis_client else None
         self.rate_limit_requests = settings.rate_limit_requests
         self.rate_limit_window = settings.rate_limit_window_seconds
     
@@ -30,7 +29,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         """Process request with rate limiting"""
         
         # Skip rate limiting if Redis is not available
-        if not self.redis_helper:
+        if not self.redis_client:
             return await call_next(request)
         
         # Get rate limit key based on endpoint and user
@@ -98,15 +97,16 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         """Check if request is within rate limit"""
         try:
             current_time = int(time.time())
-            window_start = current_time - self.rate_limit_window
             
             # Get current request count in the window
-            request_count = await self.redis_helper.get_counter(key)
+            request_count = await self.redis_client.get(key)
+            request_count = int(request_count) if request_count else 0
             
             if request_count >= self.rate_limit_requests:
                 # Calculate retry after time
-                retry_after = self.rate_limit_window - (current_time - window_start)
-                return False, max(1, retry_after)
+                ttl = await self.redis_client.ttl(key)
+                retry_after = max(1, ttl) if ttl > 0 else self.rate_limit_window
+                return False, retry_after
             
             return True, 0
             
@@ -121,7 +121,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             current_time = int(time.time())
             
             # Increment counter with TTL
-            await self.redis_helper.increment_counter(key, ttl=self.rate_limit_window)
+            pipe = self.redis_client.pipeline()
+            pipe.incr(key)
+            pipe.expire(key, self.rate_limit_window)
+            await pipe.execute()
             
         except Exception as e:
             logger.error(f"Error recording request for key {key}: {e}")

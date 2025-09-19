@@ -14,7 +14,7 @@ async def create_user(
     session: AsyncSession,
     telegram_id: int,
     username: str,
-    status: UserStatus = UserStatus.ACTIVE
+    status: UserStatus = UserStatus.ACTIVE.value
 ) -> User:
     """
     Create a new user.

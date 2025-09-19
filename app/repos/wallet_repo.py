@@ -38,8 +38,13 @@ async def create_wallet_for_user(session: AsyncSession, user_id: UUID) -> Wallet
         user_id: User UUID
     
     Returns:
-        Created Wallet instance
+        Created Wallet instance or existing wallet if one already exists
     """
+    # Check if wallet already exists
+    existing_wallet = await get_wallet_for_user(session, user_id)
+    if existing_wallet:
+        return existing_wallet
+    
     wallet = Wallet(
         user_id=user_id,
         deposit_balance=Decimal('0'),

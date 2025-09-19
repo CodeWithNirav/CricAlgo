@@ -87,3 +87,24 @@ worker-shell: ## Open Celery shell
 
 flower: ## Start Flower (Celery monitoring)
 	celery -A app.celery_app.celery flower --port=5555
+
+# Smoke test targets
+smoke-up: ## Start test stack for smoke testing
+	docker-compose -f docker-compose.test.yml up -d --build
+
+smoke-test: ## Run smoke test script
+	@echo "Running smoke test..."
+	python scripts/smoke_test.py
+	@echo "Smoke test completed. Check artifacts/smoke_test.log and artifacts/smoke_test_result.json"
+
+smoke-down: ## Stop test stack
+	docker-compose -f docker-compose.test.yml down -v
+
+smoke: ## Run complete smoke test (up + test + down)
+	@echo "Starting complete smoke test..."
+	$(MAKE) smoke-up
+	@echo "Waiting for services to be ready..."
+	sleep 15
+	$(MAKE) smoke-test
+	$(MAKE) smoke-down
+	@echo "Smoke test complete!"

@@ -21,7 +21,7 @@ def upgrade() -> None:
     op.execute('CREATE EXTENSION IF NOT EXISTS pgcrypto;')
     
     # Create ENUM types
-    op.execute("CREATE TYPE user_status AS ENUM ('active', 'frozen', 'disabled');")
+    op.execute("CREATE TYPE user_status AS ENUM ('ACTIVE', 'FROZEN', 'DISABLED');")
     op.execute("CREATE TYPE deposit_status AS ENUM ('pending', 'approved', 'rejected');")
     op.execute("CREATE TYPE withdraw_status AS ENUM ('pending', 'paid', 'failed', 'cancelled');")
     op.execute("CREATE TYPE contest_status AS ENUM ('scheduled', 'open', 'closed', 'cancelled');")
@@ -44,7 +44,7 @@ def upgrade() -> None:
         sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False, server_default=sa.text('gen_random_uuid()')),
         sa.Column('telegram_id', sa.BigInteger(), nullable=False),
         sa.Column('username', sa.String(length=48), nullable=False),
-        sa.Column('status', postgresql.ENUM('active', 'frozen', 'disabled', name='user_status'), nullable=False, server_default='active'),
+        sa.Column('status', postgresql.ENUM('ACTIVE', 'FROZEN', 'DISABLED', name='user_status'), nullable=False, server_default='ACTIVE'),
         sa.Column('created_at', sa.TIMESTAMP(timezone=True), server_default=sa.text('now()')),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('telegram_id'),
