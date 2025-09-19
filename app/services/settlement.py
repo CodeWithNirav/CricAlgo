@@ -63,8 +63,8 @@ async def settle_contest(
                 raise ValueError(f"Contest {contest_id} not found")
             
             # Step 2: Check if already settled or cancelled (idempotency)
-            if contest.status in (ContestStatus.SETTLED, ContestStatus.CANCELLED):
-                logger.info(f"Contest {contest_id} already {contest.status.value}, returning existing result")
+            if contest.status in ('settled', 'cancelled'):
+                logger.info(f"Contest {contest_id} already {contest.status}, returning existing result")
                 return await _get_existing_settlement_result(session, contest_id)
             
             # Step 3: Load all contest entries ordered by creation time (deterministic)
@@ -184,7 +184,7 @@ async def settle_contest(
             session.add(audit_log)
             
             # Step 8: Mark contest as settled
-            contest.status = ContestStatus.SETTLED
+            contest.status = 'settled'
             contest.settled_at = datetime.utcnow()
             
             await session.commit()

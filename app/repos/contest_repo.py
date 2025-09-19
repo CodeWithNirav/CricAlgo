@@ -182,6 +182,6 @@ async def settle_contest(
     if not contest:
         return False
     
-    contest.status = ContestStatus.SETTLED
+    contest.status = 'settled'
     await session.commit()
     return True

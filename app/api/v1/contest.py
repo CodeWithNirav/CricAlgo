@@ -122,7 +122,7 @@ async def create_contest_endpoint(
             max_participants=contest.max_players,
             current_participants=0,  # New contest has no participants
             prize_structure=contest.prize_structure,
-            status=contest.status.value,
+            status=contest.status,
             created_at=contest.created_at.isoformat()
         )
         
@@ -162,7 +162,7 @@ async def join_contest_endpoint(
             )
         
         # Check if contest is open for joining
-        if contest.status.value != "open":
+        if contest.status != "open":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Contest is not open for joining"
@@ -252,7 +252,7 @@ async def settle_contest_endpoint(
             )
         
         # Check if contest can be settled
-        if contest.status.value not in ["open", "closed"]:
+        if contest.status not in ["open", "closed"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Contest cannot be settled in current status"
@@ -320,7 +320,7 @@ async def get_contests_endpoint(
                 "max_participants": contest.max_participants,
                 "current_participants": len(await get_contest_entries(session, contest.id)),
                 "prize_structure": contest.prize_structure,
-                "status": contest.status.value,
+                "status": contest.status,
                 "created_at": contest.created_at.isoformat()
             }
             for contest in contests
@@ -359,7 +359,7 @@ async def get_contest_endpoint(
             "max_participants": contest.max_participants,
             "current_participants": len(entries),
             "prize_structure": contest.prize_structure,
-            "status": contest.status.value,
+            "status": contest.status,
             "created_at": contest.created_at.isoformat(),
             "participants": [
                 {
