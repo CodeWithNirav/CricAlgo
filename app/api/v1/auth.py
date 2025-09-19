@@ -15,7 +15,7 @@ from app.core.auth import (
     create_refresh_token, verify_token, get_current_user
 )
 from app.core.config import settings
-from app.db.session import get_db_session
+from app.db.session import get_db
 from app.repos.user_repo import create_user, get_user_by_username, get_user_by_telegram_id
 from app.repos.wallet_repo import create_wallet_for_user
 from app.repos.admin_repo import is_admin_user
@@ -55,7 +55,7 @@ class RefreshTokenRequest(BaseModel):
 @router.post("/register", response_model=TokenResponse)
 async def register_user(
     user_data: UserRegister,
-    session: AsyncSession = Depends(get_db_session)
+    session: AsyncSession = Depends(get_db)
 ):
     """
     Register a new user and create their wallet.
@@ -104,7 +104,7 @@ async def register_user(
 @router.post("/login", response_model=TokenResponse)
 async def login_user(
     login_data: UserLogin,
-    session: AsyncSession = Depends(get_db_session)
+    session: AsyncSession = Depends(get_db)
 ):
     """
     Login user with username/password.
@@ -177,7 +177,7 @@ async def login_user(
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh_token(
     token_data: RefreshTokenRequest,
-    session: AsyncSession = Depends(get_db_session)
+    session: AsyncSession = Depends(get_db)
 ):
     """
     Refresh access token using refresh token.

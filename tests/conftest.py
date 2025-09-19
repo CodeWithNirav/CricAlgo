@@ -240,9 +240,11 @@ async def test_client(test_app) -> AsyncGenerator[AsyncClient, None]:
 @pytest.fixture
 async def test_user(async_session: AsyncSession) -> User:
     """Create a test user with wallet."""
+    import time
+    unique_telegram_id = int(time.time() * 1000) % 1000000  # Use timestamp for uniqueness
     user = await create_user(
         session=async_session,
-        telegram_id=12345,
+        telegram_id=unique_telegram_id,
         username="testuser",
         status=UserStatus.ACTIVE.value
     )

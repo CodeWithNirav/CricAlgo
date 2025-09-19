@@ -14,7 +14,7 @@ from sqlalchemy import select, update
 
 from app.celery_app import celery
 from app.core.config import settings
-from app.db.session import AsyncSessionLocal
+from app.db.session import async_session
 from app.repos.transaction_repo import get_transaction_by_id
 from app.repos.wallet_repo import credit_deposit_atomic
 from app.repos.audit_log_repo import create_audit_log
@@ -44,7 +44,7 @@ def process_deposit(self, tx_id: str):
         logger.info(f"Processing deposit for transaction: {tx_id}")
         
         async def _process():
-            async with AsyncSessionLocal() as session:
+            async with async_session() as session:
                 # Convert string to UUID
                 try:
                     tx_uuid = UUID(tx_id)
