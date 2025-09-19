@@ -5,10 +5,57 @@ on:
     branches: [ main, develop ]
   pull_request:
     branches: [ main, develop ]
+  workflow_dispatch:  # Allow manual triggering
 
 jobs:
-  test:
+  unit-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Run linting
+      run: |
+        ruff check app/ tests/
+        black --check app/ tests/
+    
+    - name: Run unit tests
+      run: |
+        pytest tests/ -m "not integration and not e2e" -v --cov=app --cov-report=xml
+      env:
+        APP_ENV: test
+        DEBUG: false
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: unit-tests
     
     services:
       postgres:
@@ -55,19 +102,149 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     
-    - name: Run linting
+    - name: Wait for database
       run: |
-        ruff check app/ tests/
-        black --check app/ tests/
+        timeout 30 bash -c 'until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done'
     
-    - name: Run tests
+    - name: Run database migrations
       run: |
-        pytest tests/ -v
+        alembic upgrade head
       env:
         DATABASE_URL: postgresql+asyncpg://postgres:password@localhost:5432/cricalgo_test
-        REDIS_URL: redis://localhost:6379/0
+    
+    - name: Run integration tests
+      run: |
+        pytest tests/integration/ -v --cov=app --cov-report=xml --cov-append
+      env:
+        DATABASE_URL: postgresql+asyncpg://postgres:password@localhost:5432/cricalgo_test
+        REDIS_URL: redis://localhost:6379/1
         APP_ENV: test
         DEBUG: false
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: integration
+        name: codecov-umbrella
+
+  e2e-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: unit-tests
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: cricalgo_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:latest
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Wait for services
+      run: |
+        timeout 30 bash -c 'until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done'
+        timeout 30 bash -c 'until redis-cli -h localhost -p 6379 ping; do sleep 1; done'
+    
+    - name: Run database migrations
+      run: |
+        alembic upgrade head
+      env:
+        DATABASE_URL: postgresql+asyncpg://postgres:password@localhost:5432/cricalgo_test
+    
+    - name: Start application
+      run: |
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+        sleep 10
+      env:
+        DATABASE_URL: postgresql+asyncpg://postgres:password@localhost:5432/cricalgo_test
+        REDIS_URL: redis://localhost:6379/1
+        APP_ENV: test
+        DEBUG: false
+        WEBHOOK_SECRET: test-secret-key
+    
+    - name: Start fake blockchain service
+      run: |
+        python tests/e2e/fake_blockchain_service.py &
+        sleep 5
+      env:
+        PORT: 8081
+    
+    - name: Run E2E tests
+      run: |
+        RUN_E2E=1 pytest tests/e2e/ -v --cov=app --cov-report=xml --cov-append
+      env:
+        DATABASE_URL: postgresql+asyncpg://postgres:password@localhost:5432/cricalgo_test
+        REDIS_URL: redis://localhost:6379/1
+        APP_ENV: test
+        DEBUG: false
+        WEBHOOK_SECRET: test-secret-key
+    
+    - name: Upload test logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: e2e-test-logs
+        path: |
+          ./logs/
+          ./test-results/
+        retention-days: 7
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: e2e
+        name: codecov-umbrella
+
+  docker-build-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: unit-tests
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
     
     - name: Build Docker image
       run: |
@@ -75,8 +252,46 @@ jobs:
     
     - name: Test Docker container
       run: |
-        docker run -d --name cricalgo-test -p 8000:8000 cricalgo:test
-        sleep 10
+        docker run -d --name cricalgo-test -p 8000:8000 \
+          -e DATABASE_URL=sqlite+aiosqlite:///:memory: \
+          -e REDIS_URL=redis://localhost:6379/0 \
+          -e APP_ENV=test \
+          cricalgo:test
+        sleep 15
         curl -f http://localhost:8000/api/v1/health || exit 1
         docker stop cricalgo-test
         docker rm cricalgo-test
+
+  security-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: unit-tests
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install safety bandit
+    
+    - name: Run safety check
+      run: |
+        safety check -r requirements.txt
+    
+    - name: Run bandit security scan
+      run: |
+        bandit -r app/ -f json -o bandit-report.json || true
+    
+    - name: Upload security scan results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: security-scan-results
+        path: bandit-report.json
+        retention-days: 30

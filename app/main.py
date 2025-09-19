@@ -5,6 +5,7 @@ Main entry point for the application
 
 from fastapi import FastAPI
 from app.api.health import router as health_router
+from app.api.webhooks import router as webhooks_router
 
 # Create FastAPI app instance
 app = FastAPI(
@@ -17,6 +18,7 @@ app = FastAPI(
 
 # Include routers
 app.include_router(health_router, prefix="/api/v1", tags=["health"])
+app.include_router(webhooks_router, prefix="/api/v1", tags=["webhooks"])
 
 if __name__ == "__main__":
     import uvicorn

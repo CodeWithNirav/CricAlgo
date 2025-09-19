@@ -1,0 +1,17 @@
+# Dockerfile for fake blockchain service
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Copy requirements and install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the fake blockchain service
+COPY tests/e2e/fake_blockchain_service.py .
+
+# Expose port
+EXPOSE 8081
+
+# Run the fake blockchain service
+CMD ["python", "fake_blockchain_service.py"]

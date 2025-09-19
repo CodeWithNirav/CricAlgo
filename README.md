@@ -199,24 +199,211 @@ The script will:
 
 ## Testing
 
-Run the test suite:
+The project includes comprehensive testing with unit, integration, and end-to-end tests.
+
+### Test Types
+
+- **Unit Tests** - Fast, isolated tests using SQLite in-memory database
+- **Integration Tests** - Tests with real PostgreSQL database and Redis
+- **E2E Tests** - Full application flow tests with fake blockchain service
+
+### Running Tests
+
+#### Quick Test Commands
+
+```bash
+# Run all tests (unit tests only by default)
+make test
+
+# Run unit tests only (fast, SQLite)
+make test-unit
+
+# Run integration tests (PostgreSQL + Redis)
+make test-integration
+
+# Run E2E tests (full stack with fake blockchain)
+make test-e2e
+
+# Run tests with coverage report
+make test-coverage
+```
+
+#### Manual Test Execution
 
 ```bash
 # Run all tests
-pytest
+pytest tests/
+
+# Run specific test categories
+pytest tests/ -m "not integration and not e2e"  # Unit tests only
+pytest tests/integration/                       # Integration tests only
+pytest tests/e2e/                              # E2E tests only
 
 # Run with coverage
-pytest --cov=app
+pytest tests/ --cov=app --cov-report=html
 
 # Run specific test file
 pytest tests/test_health.py
+pytest tests/integration/test_wallet_repo_integration.py
+```
 
-# Run database model tests
-pytest tests/test_db_models.py
+#### Test Environment Setup
 
-# Run tests with PostgreSQL (requires running database)
-docker-compose up -d postgres
-pytest tests/test_db_models.py
+For integration and E2E tests, you can start the test services manually:
+
+```bash
+# Start test database and Redis
+make test-services
+
+# Run tests with custom database URL
+DATABASE_URL=postgresql+asyncpg://postgres:password@localhost:5433/cricalgo_test \
+REDIS_URL=redis://localhost:6380/1 \
+pytest tests/integration/
+
+# Stop test services
+make test-services-stop
+```
+
+#### E2E Test Requirements
+
+E2E tests require the `RUN_E2E=1` environment variable to run:
+
+```bash
+# Enable E2E tests
+RUN_E2E=1 pytest tests/e2e/
+
+# Or use the make command (automatically sets the flag)
+make test-e2e
+```
+
+### Test Configuration
+
+#### Database URLs
+
+- **Unit Tests**: `sqlite+aiosqlite:///:memory:` (fast, in-memory)
+- **Integration Tests**: `postgresql+asyncpg://postgres:password@localhost:5433/cricalgo_test`
+- **E2E Tests**: Same as integration tests
+
+#### Test Markers
+
+Tests are marked with pytest markers for easy filtering:
+
+- `@pytest.mark.integration` - Integration tests
+- `@pytest.mark.e2e` - End-to-end tests
+- `@pytest.mark.slow` - Slow running tests
+- `@pytest.mark.requires_docker` - Tests requiring Docker
+
+#### Test Fixtures
+
+The test suite includes comprehensive fixtures in `tests/conftest.py`:
+
+- `async_session` - Database session with transaction rollback
+- `redis_client` - Redis client with test database isolation
+- `test_app` - FastAPI app with test dependencies
+- `test_client` - HTTP test client
+- `test_user` - Sample user with wallet
+- `test_user_with_balance` - User with pre-loaded balances
+
+### CI/CD Testing
+
+The project uses GitHub Actions for automated testing:
+
+- **Unit Tests** - Run on every push (fast, ~2 minutes)
+- **Integration Tests** - Run on every push (PostgreSQL + Redis, ~5 minutes)
+- **E2E Tests** - Run on PRs and main branch (full stack, ~10 minutes)
+- **Docker Build Test** - Verify Docker image builds and runs
+- **Security Scan** - Safety and Bandit security checks
+
+View the [CI workflow](.github/workflows/ci.yml) for detailed configuration.
+
+### Test Data and Fixtures
+
+#### Database Fixtures (`tests/fixtures/database.py`)
+
+```python
+# Create test user with wallet
+user = await create_test_user_with_wallet(session, 12345, "testuser")
+
+# Create user with specific balances
+user = await create_test_user_with_balance(
+    session, 12345, "richuser",
+    deposit_balance=Decimal('100.00'),
+    bonus_balance=Decimal('50.00')
+)
+
+# Create test transaction
+tx = await create_test_transaction(
+    session, user.id, "deposit", Decimal('100.00')
+)
+```
+
+#### Redis Fixtures (`tests/fixtures/redis.py`)
+
+```python
+# Redis test helper
+helper = RedisTestHelper(redis_client)
+
+# Set idempotency key
+await helper.set_idempotency_key("tx_hash_123")
+
+# Check if processed
+is_processed = await helper.check_idempotency_key("tx_hash_123")
+```
+
+#### Webhook Fixtures (`tests/fixtures/webhooks.py`)
+
+```python
+# Create webhook payload
+payload = create_deposit_webhook_payload(
+    tx_hash="0x123...",
+    amount="100.00",
+    confirmations=12
+)
+
+# Send webhook
+webhook_helper = WebhookTestHelper(test_client)
+response = await webhook_helper.send_deposit_webhook(
+    tx_hash="0x123...",
+    amount="100.00"
+)
+```
+
+### Fake Blockchain Service
+
+E2E tests use a fake blockchain service (`tests/e2e/fake_blockchain_service.py`) that simulates blockchain webhook callbacks:
+
+```bash
+# Start fake blockchain service manually
+python tests/e2e/fake_blockchain_service.py
+
+# Service runs on http://localhost:8081
+curl http://localhost:8081/  # Health check
+curl http://localhost:8081/webhooks  # List received webhooks
+```
+
+### Troubleshooting Tests
+
+#### Common Issues
+
+1. **Port conflicts**: Test services use different ports (5433, 6380, 8001, 8081)
+2. **Database not ready**: Wait for health checks before running tests
+3. **Redis connection**: Ensure Redis is running and accessible
+4. **E2E tests skipped**: Set `RUN_E2E=1` environment variable
+
+#### Debug Commands
+
+```bash
+# Check test services status
+docker-compose -f docker-compose.test.yml ps
+
+# View test logs
+docker-compose -f docker-compose.test.yml logs
+
+# Run tests with verbose output
+pytest tests/ -v -s
+
+# Run single test with debugging
+pytest tests/integration/test_wallet_repo_integration.py::test_atomic_balance_updates -v -s
 ```
 
 ## Contributing
