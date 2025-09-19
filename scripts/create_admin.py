@@ -167,8 +167,8 @@ async def main():
                 user = await create_user(
                     session=session,
                     telegram_id=0,  # Special admin telegram ID
-                    username=f"admin_{username}",
-                    status=UserStatus.ACTIVE.value
+                    username=username,  # Use same username as admin
+                    status=UserStatus.ACTIVE
                 )
                 
                 # Create wallet for the admin user

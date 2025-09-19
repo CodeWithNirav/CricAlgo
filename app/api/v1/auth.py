@@ -120,7 +120,7 @@ async def login_user(
         )
     
     # Check if user is active
-    if user.status != UserStatus.ACTIVE.value:
+    if user.status != UserStatus.ACTIVE:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User account is not active"

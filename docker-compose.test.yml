@@ -12,7 +12,6 @@ services:
       - "5433:5432"  # Different port to avoid conflicts
     volumes:
       - postgres_test_data:/var/lib/postgresql/data
-      - ./cric_algo_postgre_sql_schema_ddl.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s

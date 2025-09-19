@@ -268,9 +268,9 @@ class SmokeTestRunner:
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 # For testing, we'll use the admin user account (not the admin record)
-                # The admin creation script creates a user account with username "admin_admin"
+                # The admin creation script creates a user account with username "admin"
                 response = await client.post(f"{self.base_url}/api/v1/login", json={
-                    "username": "admin_admin",
+                    "username": "admin",
                     "password": "admin123"
                 })
                 

@@ -4,7 +4,7 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- ENUM-like types
-CREATE TYPE user_status AS ENUM ('active', 'frozen', 'disabled');
+CREATE TYPE user_status AS ENUM ('ACTIVE', 'FROZEN', 'DISABLED');
 CREATE TYPE deposit_status AS ENUM ('pending', 'approved', 'rejected');
 CREATE TYPE withdraw_status AS ENUM ('pending', 'paid', 'failed', 'cancelled');
 CREATE TYPE contest_status AS ENUM ('scheduled', 'open', 'closed', 'cancelled');
@@ -25,7 +25,7 @@ CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   telegram_id BIGINT NOT NULL UNIQUE,
   username VARCHAR(48) NOT NULL UNIQUE,
-  status user_status NOT NULL DEFAULT 'active',
+  status user_status NOT NULL DEFAULT 'ACTIVE',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 

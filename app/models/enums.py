@@ -7,9 +7,9 @@ import enum
 
 class UserStatus(enum.Enum):
     """User status enum"""
-    ACTIVE = "active"
-    FROZEN = "frozen"
-    DISABLED = "disabled"
+    ACTIVE = "ACTIVE"
+    FROZEN = "FROZEN"
+    DISABLED = "DISABLED"
 
 
 class DepositStatus(enum.Enum):

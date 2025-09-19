@@ -30,10 +30,10 @@ async def is_admin_user(session: AsyncSession, user_id: UUID) -> bool:
     if not user:
         return False
     
-    # Check if there's an admin with the same username (removing the "admin_" prefix)
-    admin_username = user.username.replace("admin_", "")
+    # Check if there's an admin with the same username
+    # Since we now use the same username for both User and Admin tables
     result = await session.execute(
-        select(Admin).where(Admin.username == admin_username)
+        select(Admin).where(Admin.username == user.username)
     )
     admin = result.scalar_one_or_none()
     return admin is not None
@@ -103,10 +103,10 @@ async def get_admin_by_user_id(session: AsyncSession, user_id: UUID) -> Optional
     if not user:
         return None
     
-    # Check if there's an admin with the same username (removing the "admin_" prefix)
-    admin_username = user.username.replace("admin_", "")
+    # Check if there's an admin with the same username
+    # Since we now use the same username for both User and Admin tables
     result = await session.execute(
-        select(Admin).where(Admin.username == admin_username)
+        select(Admin).where(Admin.username == user.username)
     )
     return result.scalar_one_or_none()
 

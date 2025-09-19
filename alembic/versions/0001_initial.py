@@ -20,11 +20,7 @@ def upgrade() -> None:
     # Create extensions
     op.execute('CREATE EXTENSION IF NOT EXISTS pgcrypto;')
     
-    # Create ENUM types
-    op.execute("CREATE TYPE user_status AS ENUM ('ACTIVE', 'FROZEN', 'DISABLED');")
-    op.execute("CREATE TYPE deposit_status AS ENUM ('pending', 'approved', 'rejected');")
-    op.execute("CREATE TYPE withdraw_status AS ENUM ('pending', 'paid', 'failed', 'cancelled');")
-    op.execute("CREATE TYPE contest_status AS ENUM ('scheduled', 'open', 'closed', 'cancelled');")
+    # ENUM types will be created automatically by SQLAlchemy models
     
     # Create admins table
     op.create_table('admins',
