@@ -4,7 +4,6 @@ Async database session management with connection pooling
 
 from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.pool import QueuePool
 from app.core.config import settings
 
 # Create async engine with optimized pooling
@@ -12,7 +11,6 @@ async_engine = create_async_engine(
     settings.database_url,
     echo=settings.debug,
     future=True,
-    poolclass=QueuePool,
     pool_size=settings.db_pool_size,
     max_overflow=settings.db_max_overflow,
     pool_pre_ping=True,
