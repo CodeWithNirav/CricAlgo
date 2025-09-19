@@ -119,7 +119,7 @@ async def create_contest_endpoint(
             title=contest.title,
             description=contest.description,
             entry_fee=str(contest.entry_fee),
-            max_participants=contest.max_participants,
+            max_participants=contest.max_players,
             current_participants=0,  # New contest has no participants
             prize_structure=contest.prize_structure,
             status=contest.status.value,
