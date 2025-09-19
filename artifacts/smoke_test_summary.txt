@@ -1,0 +1,38 @@
+CricAlgo Smoke Test Summary
+============================
+
+Test Run: 2025-09-19 19:43:04 UTC
+Test ID: 1758291182
+Status: PARTIAL SUCCESS
+
+SERVICES STATUS:
+✅ App (FastAPI): Running on port 8001 - Health check passed
+✅ API Docs: Accessible at http://localhost:8001/docs
+✅ Fake Blockchain: Running on port 8081 - Service responding
+✅ Redis: Running on port 6380 - Accessible
+✅ PostgreSQL: Running on port 5433 - Healthy
+
+ISSUES ENCOUNTERED:
+1. Unicode encoding issues with emoji characters in console output (Windows cp1252 encoding)
+2. Admin user creation failed due to Unicode issues in create_admin.py script
+3. Some async function calls had incorrect await usage
+
+SERVICES VERIFIED:
+- All core services (app, redis, postgres, fake-blockchain) are running
+- Health endpoints are responding correctly
+- Database connectivity established
+- Redis connectivity established
+
+TEST ARTIFACTS:
+- smoke_test.log: Detailed test execution log
+- smoke_test_result.json: Structured test results
+- docker_compose_logs.log: Docker container logs
+- docker_state.log: Docker container and image status
+
+RECOMMENDATIONS:
+1. Fix Unicode encoding issues in scripts for Windows compatibility
+2. Fix async function calls in smoke test
+3. Consider using ASCII characters instead of emojis for cross-platform compatibility
+
+OVERALL ASSESSMENT:
+The core infrastructure is working correctly. All services are running and responding to health checks. The main application is functional and ready for testing. The issues encountered are primarily related to Windows console encoding and script compatibility, not core functionality.

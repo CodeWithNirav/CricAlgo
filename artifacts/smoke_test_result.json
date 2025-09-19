@@ -1,0 +1,61 @@
+{
+  "status": "fail",
+  "start_time": "2025-09-19T14:13:02.107121+00:00",
+  "steps": [
+    {
+      "step": "Starting smoke test",
+      "status": "info",
+      "timestamp": "2025-09-19T14:13:02.107153+00:00",
+      "details": "Test ID: 1758291182"
+    },
+    {
+      "step": "Waiting for services to be ready",
+      "status": "info",
+      "timestamp": "2025-09-19T14:13:02.107767+00:00",
+      "details": ""
+    },
+    {
+      "step": "App health check",
+      "status": "success",
+      "timestamp": "2025-09-19T14:13:03.645073+00:00",
+      "details": "App is responding"
+    },
+    {
+      "step": "API docs",
+      "status": "success",
+      "timestamp": "2025-09-19T14:13:03.678566+00:00",
+      "details": "Docs are accessible"
+    },
+    {
+      "step": "Fake blockchain",
+      "status": "success",
+      "timestamp": "2025-09-19T14:13:04.114147+00:00",
+      "details": "Service is responding"
+    },
+    {
+      "step": "Redis",
+      "status": "success",
+      "timestamp": "2025-09-19T14:13:04.119849+00:00",
+      "details": "Redis is accessible"
+    },
+    {
+      "step": "All services ready",
+      "status": "success",
+      "timestamp": "2025-09-19T14:13:04.130046+00:00",
+      "details": "All services are responding"
+    },
+    {
+      "step": "Smoke test error",
+      "status": "error",
+      "timestamp": "2025-09-19T14:13:04.138225+00:00",
+      "details": "object bool can't be used in 'await' expression"
+    }
+  ],
+  "assertions": [],
+  "final_balances": {},
+  "errors": [
+    "Unexpected error: object bool can't be used in 'await' expression"
+  ],
+  "end_time": "2025-09-19T14:13:04.138802+00:00",
+  "duration_seconds": 2.031681
+}
