@@ -244,7 +244,7 @@ async def test_user(async_session: AsyncSession) -> User:
         session=async_session,
         telegram_id=12345,
         username="testuser",
-        status=UserStatus.ACTIVE
+        status=UserStatus.ACTIVE.value
     )
     
     # Create wallet for user
@@ -262,7 +262,7 @@ async def test_user_with_balance(async_session: AsyncSession) -> User:
         session=async_session,
         telegram_id=67890,
         username="richuser",
-        status=UserStatus.ACTIVE
+        status=UserStatus.ACTIVE.value
     )
     
     # Create wallet for user

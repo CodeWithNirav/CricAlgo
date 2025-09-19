@@ -62,6 +62,8 @@ services:
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:password@postgres:5432/cricalgo_test
       - REDIS_URL=redis://redis:6379/1
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
       - APP_ENV=testing
       - DEBUG=false
       - WEBHOOK_SECRET=test-secret-key

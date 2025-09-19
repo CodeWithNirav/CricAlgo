@@ -105,10 +105,31 @@ async def process_deposit_confirmation(
     try:
         tx_hash = payload.tx_hash
         amount = Decimal(payload.amount or "0")
-        user_id = UUID(payload.user_id) if payload.user_id else None
+        
+        # Try to get user_id from payload first, otherwise find transaction by tx_hash
+        user_id = None
+        if payload.user_id:
+            user_id = UUID(payload.user_id)
+        else:
+            # Find transaction by tx_hash in metadata
+            from app.models.transaction import Transaction
+            result = await session.execute(
+                select(Transaction).where(
+                    Transaction.tx_metadata["tx_hash"].astext == tx_hash
+                )
+            )
+            transaction = result.scalar_one_or_none()
+            if transaction:
+                user_id = transaction.user_id
+                # Use amount from transaction if not provided in payload
+                if not payload.amount:
+                    amount = transaction.amount
+            else:
+                logger.error(f"No transaction found for tx_hash {tx_hash}")
+                return False
         
         if not user_id:
-            logger.error(f"No user_id provided for deposit webhook {tx_hash}")
+            logger.error(f"No user_id found for deposit webhook {tx_hash}")
             return False
         
         # Get user and wallet
@@ -134,17 +155,18 @@ async def process_deposit_confirmation(
             return False
         
         # Update transaction metadata
-        await update_transaction_metadata(
-            session,
-            None,  # Would need transaction ID lookup
-            {
-                "tx_hash": tx_hash,
-                "confirmations": payload.confirmations,
-                "status": payload.status,
-                "block_number": payload.block_number,
-                "processed_at": "now()"
-            }
-        )
+        if 'transaction' in locals():
+            await update_transaction_metadata(
+                session,
+                transaction.id,
+                {
+                    "tx_hash": tx_hash,
+                    "confirmations": payload.confirmations,
+                    "status": payload.status,
+                    "block_number": payload.block_number,
+                    "processed_at": "now()"
+                }
+            )
         
         logger.info(f"Successfully processed deposit {tx_hash} for user {user_id}, amount: {amount}")
         return True

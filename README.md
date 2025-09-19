@@ -5,12 +5,13 @@ A FastAPI-based cricket algorithm trading bot with Telegram integration, built f
 ## Features
 
 - 🏏 **Cricket Contest Management** - Automated contest creation and management
-- 💰 **Multi-Currency Support** - USDT (BEP20) integration
+- 💰 **Multi-Currency Support** - USDT (BEP20) integration with deposit processing
 - 🤖 **Telegram Bot** - User-friendly Telegram interface
 - 🗄️ **PostgreSQL Database** - Robust data storage with Alembic migrations
-- ⚡ **Redis Caching** - High-performance caching layer
+- ⚡ **Redis Caching** - High-performance caching layer with idempotency
 - 🐳 **Docker Support** - Easy deployment and development
 - 🧪 **Testing & CI/CD** - Comprehensive testing and automated CI
+- 🔄 **Deposit Processing** - Automated webhook-based deposit confirmation and wallet crediting
 
 ## Quick Start
 
@@ -137,6 +138,123 @@ A FastAPI-based cricket algorithm trading bot with Telegram integration, built f
 - `GET /api/v1/admin/users/{id}` - Get user details (admin)
 - `POST /api/v1/admin/transactions/{id}/approve` - Approve withdrawal (admin)
 - `GET /api/v1/admin/audit-logs` - Get audit logs (admin)
+
+### Webhooks
+- `POST /api/v1/webhook/bep20` - BEP20 transaction webhook
+- `GET /api/v1/webhook/health` - Webhook health check
+
+## Deposit Processing
+
+The system implements a robust deposit processing pipeline that handles blockchain transaction confirmations and automatically credits user wallets.
+
+### How It Works
+
+1. **Webhook Reception**: Blockchain webhooks are received at `/api/v1/webhook/bep20`
+2. **Signature Verification**: HMAC-SHA256 signature verification (if `WEBHOOK_SECRET` is configured)
+3. **Transaction Lookup/Creation**: System looks up existing transaction or creates new one
+4. **Confirmation Tracking**: Updates confirmation count in transaction metadata
+5. **Threshold Check**: When confirmations ≥ `CONFIRMATIONS_REQUIRED` (default: 3), enqueues processing
+6. **Atomic Processing**: Celery task atomically credits user wallet and updates transaction status
+7. **Idempotency**: Redis-based idempotency prevents duplicate processing
+
+### Configuration
+
+Set these environment variables:
+
+```bash
+# Required
+CONFIRMATIONS_REQUIRED=3          # Minimum confirmations for processing
+WEBHOOK_SECRET=your-secret-key    # HMAC secret for webhook verification
+
+# Optional
+CURRENCY=USDT                     # Default currency
+```
+
+### Webhook Payload
+
+```json
+{
+  "tx_hash": "0x1234567890abcdef",
+  "confirmations": 3,
+  "chain": "bep20",
+  "to_address": "0xrecipient123",
+  "amount": "100.50",
+  "currency": "USDT",
+  "user_id": "user-uuid-here",
+  "metadata": {
+    "block_number": 12345,
+    "gas_used": "21000"
+  }
+}
+```
+
+### Testing Deposit Processing
+
+#### 1. Local Testing with Celery Eager Mode
+
+```bash
+# Set Celery to eager mode for testing
+export CELERY_TASK_ALWAYS_EAGER=1
+
+# Run tests
+pytest tests/integration/test_deposit_processing.py -v
+pytest tests/e2e/test_deposit_smoke.py -v
+```
+
+#### 2. Manual Webhook Testing
+
+```bash
+# Calculate HMAC signature
+echo -n '{"tx_hash":"0xtest123","confirmations":3,"amount":"100.00","user_id":"user-uuid"}' | \
+openssl dgst -sha256 -hmac "your-webhook-secret" -binary | \
+xxd -p -c 256
+
+# Send webhook
+curl -X POST http://localhost:8000/api/v1/webhook/bep20 \
+  -H "Content-Type: application/json" \
+  -H "X-Signature: calculated-signature" \
+  -d '{
+    "tx_hash": "0xtest123",
+    "confirmations": 3,
+    "chain": "bep20",
+    "amount": "100.00",
+    "currency": "USDT",
+    "user_id": "user-uuid-here"
+  }'
+```
+
+#### 3. Running Celery Worker
+
+```bash
+# Start Celery worker
+celery -A app.celery_app worker --loglevel=info
+
+# Or with Docker Compose
+docker-compose up celery-worker
+```
+
+### Database Schema
+
+The deposit processing uses these key tables:
+
+- `transactions`: Stores deposit transactions with `processed_at` timestamp
+- `wallets`: User wallet balances with atomic updates
+- `audit_logs`: System audit trail for deposit processing
+
+### Monitoring
+
+The system logs key events:
+
+- Webhook reception and validation
+- Transaction creation/updates
+- Deposit processing enqueueing
+- Wallet credit operations
+- Idempotency checks
+
+Check logs for:
+- `deposit_processed_total` - Total deposits processed
+- `deposit_idempotent_skips_total` - Duplicate webhooks skipped
+- `deposit_failed_total` - Failed deposit processing
 - `GET /api/v1/admin/stats` - Get admin statistics (admin)
 
 ### Webhooks

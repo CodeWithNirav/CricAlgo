@@ -5,11 +5,15 @@ Wallet repository with atomic balance operations
 from typing import Optional, Tuple
 from uuid import UUID
 from decimal import Decimal
+import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 from sqlalchemy.orm import selectinload
 from app.models.wallet import Wallet
 from app.models.user import User
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 async def get_wallet_for_user(session: AsyncSession, user_id: UUID) -> Optional[Wallet]:
@@ -118,6 +122,61 @@ async def update_balances_atomic(
         return False, f"Database error: {str(e)}"
 
 
+async def credit_deposit_atomic(
+    session: AsyncSession,
+    user_id: UUID,
+    amount: Decimal,
+    tx_id: Optional[UUID] = None,
+    tx_hash: Optional[str] = None
+) -> Tuple[bool, Optional[str], Optional[Decimal]]:
+    """
+    Atomically credit user's deposit balance with row-level locking.
+    
+    This function uses SELECT FOR UPDATE to prevent race conditions
+    and ensures atomic balance updates within a single transaction.
+    
+    Args:
+        session: Database session
+        user_id: User UUID
+        amount: Amount to credit (must be positive)
+        tx_id: Transaction ID for logging (optional)
+        tx_hash: Transaction hash for logging (optional)
+    
+    Returns:
+        Tuple of (success: bool, error_message: Optional[str], new_balance: Optional[Decimal])
+    """
+    try:
+        if amount <= 0:
+            return False, "Amount must be positive", None
+        
+        # Lock the wallet row for update to prevent race conditions
+        result = await session.execute(
+            select(Wallet)
+            .where(Wallet.user_id == user_id)
+            .with_for_update()
+        )
+        wallet = result.scalar_one_or_none()
+        
+        if not wallet:
+            return False, "Wallet not found", None
+        
+        # Calculate new deposit balance
+        new_deposit_balance = wallet.deposit_balance + amount
+        
+        # Update deposit balance
+        wallet.deposit_balance = new_deposit_balance
+        
+        await session.commit()
+        
+        logger.info(f"Credited {amount} to user {user_id} deposit balance. New balance: {new_deposit_balance}")
+        return True, None, new_deposit_balance
+        
+    except Exception as e:
+        await session.rollback()
+        logger.error(f"Error crediting deposit for user {user_id}: {str(e)}")
+        return False, f"Database error: {str(e)}", None
+
+
 async def debit_for_contest_entry(
     session: AsyncSession,
     user_id: UUID,
@@ -182,3 +241,58 @@ async def debit_for_contest_entry(
     except Exception as e:
         await session.rollback()
         return False, f"Database error: {str(e)}"
+
+
+async def credit_deposit_atomic(
+    session: AsyncSession,
+    user_id: UUID,
+    amount: Decimal,
+    tx_id: Optional[UUID] = None,
+    tx_hash: Optional[str] = None
+) -> Tuple[bool, Optional[str], Optional[Decimal]]:
+    """
+    Atomically credit user's deposit balance with row-level locking.
+    
+    This function uses SELECT FOR UPDATE to prevent race conditions
+    and ensures atomic balance updates within a single transaction.
+    
+    Args:
+        session: Database session
+        user_id: User UUID
+        amount: Amount to credit (must be positive)
+        tx_id: Transaction ID for logging (optional)
+        tx_hash: Transaction hash for logging (optional)
+    
+    Returns:
+        Tuple of (success: bool, error_message: Optional[str], new_balance: Optional[Decimal])
+    """
+    try:
+        if amount <= 0:
+            return False, "Amount must be positive", None
+        
+        # Lock the wallet row for update to prevent race conditions
+        result = await session.execute(
+            select(Wallet)
+            .where(Wallet.user_id == user_id)
+            .with_for_update()
+        )
+        wallet = result.scalar_one_or_none()
+        
+        if not wallet:
+            return False, "Wallet not found", None
+        
+        # Calculate new deposit balance
+        new_deposit_balance = wallet.deposit_balance + amount
+        
+        # Update deposit balance
+        wallet.deposit_balance = new_deposit_balance
+        
+        await session.commit()
+        
+        logger.info(f"Credited {amount} to user {user_id} deposit balance. New balance: {new_deposit_balance}")
+        return True, None, new_deposit_balance
+        
+    except Exception as e:
+        await session.rollback()
+        logger.error(f"Error crediting deposit for user {user_id}: {str(e)}")
+        return False, f"Database error: {str(e)}", None

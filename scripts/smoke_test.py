@@ -371,7 +371,7 @@ class SmokeTestRunner:
                 # Prepare webhook payload
                 payload = {
                     "tx_hash": self.tx_hash,
-                    "confirmations": 3,
+                    "confirmations": 12,
                     "amount": "10.0",
                     "currency": "USDT",
                     "status": "confirmed",

@@ -21,7 +21,8 @@ class Transaction(Base):
     currency = Column(String(16), nullable=False, default='USDT')
     related_entity = Column(String(64), nullable=True)
     related_id = Column(UUID(as_uuid=True), nullable=True)
-    tx_metadata = Column(JSON, nullable=True)
+    tx_metadata = Column('metadata', JSON, nullable=True)
+    processed_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     def __repr__(self):
