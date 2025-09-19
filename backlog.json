@@ -1,0 +1,72 @@
+[
+  {
+    "id": 1,
+    "title": "Repository Setup",
+    "description": "Initialize Git repository with main and feature branches, create .gitignore",
+    "priority": 1,
+    "estimate": null
+  },
+  {
+    "id": 2,
+    "title": "Database Migration System",
+    "description": "Set up Alembic for database migrations and create initial migration from DDL",
+    "priority": 1,
+    "estimate": null
+  },
+  {
+    "id": 3,
+    "title": "FastAPI Application Skeleton",
+    "description": "Create basic FastAPI app with /health endpoint returning 200 status",
+    "priority": 1,
+    "estimate": null
+  },
+  {
+    "id": 4,
+    "title": "Environment Configuration",
+    "description": "Create .env.example with database, API keys, and configuration variables",
+    "priority": 1,
+    "estimate": null
+  },
+  {
+    "id": 5,
+    "title": "Docker Configuration",
+    "description": "Create Dockerfile and docker-compose.yml for local development",
+    "priority": 2,
+    "estimate": null
+  },
+  {
+    "id": 6,
+    "title": "Dependency Management",
+    "description": "Set up pyproject.toml with FastAPI, SQLAlchemy, PostgreSQL driver, and other dependencies",
+    "priority": 2,
+    "estimate": null
+  },
+  {
+    "id": 7,
+    "title": "Database Models",
+    "description": "Create SQLAlchemy models matching the DDL schema (users, wallets, contests, etc.)",
+    "priority": 2,
+    "estimate": null
+  },
+  {
+    "id": 8,
+    "title": "Admin Authentication Skeleton",
+    "description": "Implement basic JWT-based admin authentication with password hashing",
+    "priority": 3,
+    "estimate": null
+  },
+  {
+    "id": 9,
+    "title": "Webhook Handler Skeleton",
+    "description": "Create webhook endpoint structure for Telegram bot integration",
+    "priority": 3,
+    "estimate": null
+  },
+  {
+    "id": 10,
+    "title": "Documentation",
+    "description": "Create README.md with setup instructions, API documentation, and development guidelines",
+    "priority": 3,
+    "estimate": null
+  }
+]
