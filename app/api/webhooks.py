@@ -13,6 +13,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.db.session import get_db
 from app.repos.transaction_repo import get_transactions_by_user, update_transaction_metadata
@@ -115,7 +116,7 @@ async def process_deposit_confirmation(
             from app.models.transaction import Transaction
             result = await session.execute(
                 select(Transaction).where(
-                    Transaction.tx_metadata["tx_hash"].astext == tx_hash
+                    Transaction.tx_metadata["tx_hash"].as_string() == tx_hash
                 )
             )
             transaction = result.scalar_one_or_none()
@@ -234,8 +235,7 @@ async def process_withdrawal_confirmation(
 @router.post("/webhooks/bep20", response_model=WebhookResponse)
 async def receive_bep20_webhook(
     payload: WebhookPayload,
-    request: Request,
-    session: AsyncSession = Depends(get_db)
+    request: Request
 ):
     """
     Receive BEP20 (BSC) transaction confirmation webhooks.
@@ -276,16 +276,17 @@ async def receive_bep20_webhook(
         # Process based on transaction type (inferred from amount sign or metadata)
         success = False
         
-        if payload.status == "confirmed":
-            # For now, assume all confirmed transactions are deposits
-            # In a real implementation, you'd determine this from transaction metadata
-            success = await process_deposit_confirmation(session, redis_client, payload)
-        elif payload.status == "failed":
-            logger.info(f"Transaction {tx_hash} failed, no balance update needed")
-            success = True
-        else:
-            logger.warning(f"Unknown transaction status: {payload.status}")
-            success = False
+        async with get_db() as db:
+            if payload.status == "confirmed":
+                # For now, assume all confirmed transactions are deposits
+                # In a real implementation, you'd determine this from transaction metadata
+                success = await process_deposit_confirmation(db, redis_client, payload)
+            elif payload.status == "failed":
+                logger.info(f"Transaction {tx_hash} failed, no balance update needed")
+                success = True
+            else:
+                logger.warning(f"Unknown transaction status: {payload.status}")
+                success = False
         
         # Mark as processed (if Redis is available)
         if redis_client and success:

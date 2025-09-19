@@ -25,6 +25,9 @@ AsyncSessionLocal = async_sessionmaker(
     expire_on_commit=False
 )
 
+# Export for use in Celery tasks
+async_session = AsyncSessionLocal
+
 
 @asynccontextmanager
 async def get_db() -> AsyncSession:
