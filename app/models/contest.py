@@ -25,7 +25,7 @@ class Contest(Base):
     prize_structure = Column(JSON, nullable=False, default={})
     commission_pct = Column(Numeric(5, 2), nullable=False, default=0)
     join_cutoff = Column(DateTime(timezone=True), nullable=True)
-    status = Column(ENUM(ContestStatus, name='contest_status'), nullable=False, default=ContestStatus.OPEN)
+    status = Column(ENUM('scheduled', 'open', 'closed', 'cancelled', 'settled', name='contest_status'), nullable=False, default='open')
     settled_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

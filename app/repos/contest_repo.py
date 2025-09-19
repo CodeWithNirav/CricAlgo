@@ -87,7 +87,7 @@ async def create_contest(
         entry_fee=entry_fee,
         max_players=max_participants,
         prize_structure=prize_structure,
-        status=ContestStatus.OPEN
+        status='open'
     )
     session.add(contest)
     await session.commit()
