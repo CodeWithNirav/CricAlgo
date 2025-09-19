@@ -1,137 +1,137 @@
 {
   "status": "running",
-  "start_time": "2025-09-19T16:46:41.259753+00:00",
+  "start_time": "2025-09-19T17:13:29.801214+00:00",
   "steps": [
     {
       "step": "Starting smoke test",
       "status": "info",
-      "timestamp": "2025-09-19T16:46:41.259840+00:00",
-      "details": "Test ID: 1758300401"
+      "timestamp": "2025-09-19T17:13:29.801238+00:00",
+      "details": "Test ID: 1758302009"
     },
     {
       "step": "Waiting for services to be ready",
       "status": "info",
-      "timestamp": "2025-09-19T16:46:41.263650+00:00",
+      "timestamp": "2025-09-19T17:13:29.802305+00:00",
       "details": ""
     },
     {
       "step": "App health check",
       "status": "success",
-      "timestamp": "2025-09-19T16:46:41.303051+00:00",
+      "timestamp": "2025-09-19T17:13:29.847815+00:00",
       "details": "App is responding"
     },
     {
       "step": "API docs",
       "status": "success",
-      "timestamp": "2025-09-19T16:46:41.308639+00:00",
+      "timestamp": "2025-09-19T17:13:29.851855+00:00",
       "details": "Docs are accessible"
     },
     {
       "step": "Fake blockchain",
       "status": "success",
-      "timestamp": "2025-09-19T16:46:41.318891+00:00",
+      "timestamp": "2025-09-19T17:13:29.866569+00:00",
       "details": "Service is responding"
     },
     {
       "step": "Redis",
       "status": "success",
-      "timestamp": "2025-09-19T16:46:41.319653+00:00",
+      "timestamp": "2025-09-19T17:13:29.867270+00:00",
       "details": "Redis is accessible"
     },
     {
       "step": "All services ready",
       "status": "success",
-      "timestamp": "2025-09-19T16:46:41.320306+00:00",
+      "timestamp": "2025-09-19T17:13:29.868020+00:00",
       "details": "All services are responding"
     },
     {
       "step": "Creating admin user",
       "status": "info",
-      "timestamp": "2025-09-19T16:46:41.321739+00:00",
+      "timestamp": "2025-09-19T17:13:29.868826+00:00",
       "details": ""
     },
     {
       "step": "Admin user created",
       "status": "success",
-      "timestamp": "2025-09-19T16:46:43.467833+00:00",
+      "timestamp": "2025-09-19T17:13:32.156056+00:00",
       "details": "Admin user created successfully"
     },
     {
       "step": "Logging in as admin",
       "status": "info",
-      "timestamp": "2025-09-19T16:46:43.468529+00:00",
+      "timestamp": "2025-09-19T17:13:32.157069+00:00",
       "details": ""
     },
     {
       "step": "Admin login",
       "status": "success",
-      "timestamp": "2025-09-19T16:46:43.516825+00:00",
+      "timestamp": "2025-09-19T17:13:32.284078+00:00",
       "details": "Admin logged in successfully"
     },
     {
       "step": "Creating test users",
       "status": "info",
-      "timestamp": "2025-09-19T16:46:43.518378+00:00",
+      "timestamp": "2025-09-19T17:13:32.284949+00:00",
       "details": ""
     },
     {
       "step": "User A created",
       "status": "success",
-      "timestamp": "2025-09-19T16:46:43.576729+00:00",
-      "details": "Username: smoke_user_a_1758300401"
+      "timestamp": "2025-09-19T17:13:32.343627+00:00",
+      "details": "Username: smoke_user_a_1758302009"
     },
     {
       "step": "User B created",
       "status": "success",
-      "timestamp": "2025-09-19T16:46:43.624547+00:00",
-      "details": "Username: smoke_user_b_1758300401"
+      "timestamp": "2025-09-19T17:13:32.366748+00:00",
+      "details": "Username: smoke_user_b_1758302009"
     },
     {
       "step": "Creating deposit transaction",
       "status": "info",
-      "timestamp": "2025-09-19T16:46:43.626774+00:00",
+      "timestamp": "2025-09-19T17:13:32.369972+00:00",
       "details": ""
     },
     {
       "step": "Deposit transaction created",
       "status": "success",
-      "timestamp": "2025-09-19T16:46:43.651289+00:00",
-      "details": "TX: smoke_tx_1758300401"
+      "timestamp": "2025-09-19T17:13:32.411233+00:00",
+      "details": "TX: smoke_tx_1758302009"
     },
     {
       "step": "Simulating webhook confirmation",
       "status": "info",
-      "timestamp": "2025-09-19T16:46:43.652956+00:00",
+      "timestamp": "2025-09-19T17:13:32.413170+00:00",
       "details": ""
     },
     {
       "step": "Webhook attempt 1",
       "status": "success",
-      "timestamp": "2025-09-19T16:46:43.782186+00:00",
+      "timestamp": "2025-09-19T17:13:32.480307+00:00",
       "details": "Status: 200"
     },
     {
       "step": "Webhook attempt 2",
       "status": "success",
-      "timestamp": "2025-09-19T16:46:43.804050+00:00",
+      "timestamp": "2025-09-19T17:13:32.499380+00:00",
       "details": "Status: 200"
     },
     {
       "step": "Verifying deposit processing",
       "status": "info",
-      "timestamp": "2025-09-19T16:46:43.804833+00:00",
+      "timestamp": "2025-09-19T17:13:32.500528+00:00",
       "details": ""
     },
     {
       "step": "Creating contest",
       "status": "info",
-      "timestamp": "2025-09-19T16:46:43.826577+00:00",
+      "timestamp": "2025-09-19T17:13:32.534129+00:00",
       "details": ""
     },
     {
       "step": "Contest creation failed",
       "status": "error",
-      "timestamp": "2025-09-19T16:46:43.849105+00:00",
+      "timestamp": "2025-09-19T17:13:32.588571+00:00",
       "details": "Status: 500"
     }
   ],
@@ -140,17 +140,17 @@
       "assertion": "Deposit balance increased",
       "passed": true,
       "details": "Balance: 20.00000000",
-      "timestamp": "2025-09-19T16:46:43.812822+00:00"
+      "timestamp": "2025-09-19T17:13:32.526320+00:00"
     },
     {
       "assertion": "Transaction status is confirmed",
       "passed": true,
       "details": "Status: confirmed",
-      "timestamp": "2025-09-19T16:46:43.823837+00:00"
+      "timestamp": "2025-09-19T17:13:32.532660+00:00"
     }
   ],
   "final_balances": {},
   "errors": [],
-  "end_time": "2025-09-19T16:46:43.850379+00:00",
-  "duration_seconds": 2.590626
+  "end_time": "2025-09-19T17:13:32.589951+00:00",
+  "duration_seconds": 2.788737
 }

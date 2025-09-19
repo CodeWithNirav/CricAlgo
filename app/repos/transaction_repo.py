@@ -148,3 +148,26 @@ async def update_transaction_metadata(
     await session.commit()
     await session.refresh(transaction)
     return transaction
+
+
+async def get_transaction_by_metadata(
+    session: AsyncSession,
+    metadata_filter: dict
+) -> Optional[Transaction]:
+    """
+    Get transaction by metadata filter.
+    
+    Args:
+        session: Database session
+        metadata_filter: Dictionary with metadata key-value pairs to filter by
+    
+    Returns:
+        Transaction instance or None if not found
+    """
+    query = select(Transaction)
+    
+    for key, value in metadata_filter.items():
+        query = query.where(Transaction.tx_metadata[key].astext == str(value))
+    
+    result = await session.execute(query.limit(1))
+    return result.scalar_one_or_none()

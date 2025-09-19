@@ -11,6 +11,7 @@ from app.api.v1.auth import router as auth_router
 from app.api.v1.wallet import router as wallet_router
 from app.api.v1.contest import router as contest_router
 from app.api.v1.admin import router as admin_router
+from app.api.v1.admin_contest import router as admin_contest_router
 from app.middleware.rate_limit import RateLimitMiddleware
 
 # Create FastAPI app instance
@@ -44,6 +45,7 @@ app.include_router(auth_router, prefix="/api/v1", tags=["authentication"])
 app.include_router(wallet_router, prefix="/api/v1", tags=["wallet"])
 app.include_router(contest_router, prefix="/api/v1", tags=["contest"])
 app.include_router(admin_router, prefix="/api/v1", tags=["admin"])
+app.include_router(admin_contest_router, prefix="/api/v1/admin", tags=["admin-contest"])
 
 if __name__ == "__main__":
     import uvicorn

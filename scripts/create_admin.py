@@ -35,7 +35,7 @@ from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.db.session import get_db
+from app.db.session import AsyncSessionLocal
 from app.models.admin import Admin
 from app.repos.user_repo import create_user
 from app.repos.wallet_repo import create_wallet_for_user
@@ -131,7 +131,7 @@ async def main():
     
     try:
         # Create admin user
-        async with get_db() as session:
+        async with AsyncSessionLocal() as session:
             # Check if admin already exists
             from app.repos.admin_repo import get_admin_by_username
             existing_admin = await get_admin_by_username(session, username)

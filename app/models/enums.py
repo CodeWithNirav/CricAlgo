@@ -33,3 +33,4 @@ class ContestStatus(enum.Enum):
     OPEN = "open"
     CLOSED = "closed"
     CANCELLED = "cancelled"
+    SETTLED = "settled"

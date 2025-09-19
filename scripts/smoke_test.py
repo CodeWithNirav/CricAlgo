@@ -40,12 +40,13 @@ import httpx
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.core.config import settings
-from app.db.session import get_db
+from app.db.session import AsyncSessionLocal
 from app.repos.user_repo import get_user_by_username
 from app.repos.wallet_repo import get_wallet_for_user
 from app.repos.transaction_repo import create_transaction, get_transactions_by_user
 from app.repos.contest_entry_repo import get_contest_entries
 from app.repos.audit_log_repo import get_audit_logs
+from app.models.enums import ContestStatus
 
 
 class SmokeTestLogger:
@@ -232,7 +233,7 @@ class SmokeTestRunner:
         
         try:
             # Check if admin already exists
-            async with get_db() as session:
+            async with AsyncSessionLocal() as session:
                 admin_user = await get_user_by_username(session, "admin")
                 if admin_user:
                     self.log_step("Admin user exists", "success", "Using existing admin")
@@ -331,7 +332,7 @@ class SmokeTestRunner:
         self.log_step("Creating deposit transaction")
         
         try:
-            async with get_db() as session:
+            async with AsyncSessionLocal() as session:
                 # Get user A
                 user_a = await get_user_by_username(session, self.user_a_username)
                 if not user_a:
@@ -414,7 +415,7 @@ class SmokeTestRunner:
         self.log_step("Verifying deposit processing")
         
         try:
-            async with get_db() as session:
+            async with AsyncSessionLocal() as session:
                 # Get user A
                 user_a = await get_user_by_username(session, self.user_a_username)
                 if not user_a:
@@ -538,7 +539,7 @@ class SmokeTestRunner:
         self.log_step("Funding user B")
         
         try:
-            async with get_db() as session:
+            async with AsyncSessionLocal() as session:
                 # Get user B
                 user_b = await get_user_by_username(session, self.user_b_username)
                 if not user_b:
@@ -591,7 +592,7 @@ class SmokeTestRunner:
                 headers = {"Authorization": f"Bearer {self.admin_token}"}
                 
                 response = await client.post(
-                    f"{self.base_url}/api/v1/admin/{self.contest_id}/settle",
+                    f"{self.base_url}/api/v1/admin/contest/{self.contest_id}/settle",
                     headers=headers
                 )
                 
@@ -615,16 +616,14 @@ class SmokeTestRunner:
         
         while time.time() - start_time < timeout:
             try:
-                async with get_db() as session:
-                    # Check contest entries for payout status
-                    entries = await get_contest_entries(session, self.contest_id)
+                async with AsyncSessionLocal() as session:
+                    # Check if contest is settled
+                    from app.repos.contest_repo import get_contest_by_id
+                    contest = await get_contest_by_id(session, self.contest_id)
                     
-                    if entries:
-                        # Check if any entry has payout metadata
-                        for entry in entries:
-                            if hasattr(entry, 'payout_metadata') and entry.payout_metadata:
-                                self.log_step("Payouts processed", "success", "Payouts completed")
-                                return True
+                    if contest and contest.status == ContestStatus.SETTLED:
+                        self.log_step("Payouts processed", "success", "Contest settled and payouts completed")
+                        return True
                     
                 await asyncio.sleep(2)
                 
@@ -667,7 +666,7 @@ class SmokeTestRunner:
         self.log_step("Verifying final balances")
         
         try:
-            async with get_db() as session:
+            async with AsyncSessionLocal() as session:
                 # Get user A
                 user_a = await get_user_by_username(session, self.user_a_username)
                 user_b = await get_user_by_username(session, self.user_b_username)
@@ -712,7 +711,7 @@ class SmokeTestRunner:
         self.log_step("Checking audit logs")
         
         try:
-            async with get_db() as session:
+            async with AsyncSessionLocal() as session:
                 logs = await get_audit_logs(session, limit=50)
                 
                 # Look for specific actions

@@ -177,6 +177,72 @@ async def credit_deposit_atomic(
         return False, f"Database error: {str(e)}", None
 
 
+async def credit_winning_atomic(
+    session: AsyncSession,
+    user_id: UUID,
+    amount: Decimal,
+    reason: str,
+    meta: Optional[dict] = None
+) -> Tuple[bool, Optional[str], Optional[Decimal]]:
+    """
+    Atomically credit user's winning balance with row-level locking.
+    
+    This function uses SELECT FOR UPDATE to prevent race conditions
+    and ensures atomic balance updates within a single transaction.
+    Includes idempotency check via meta["idempotency_key"].
+    
+    Args:
+        session: Database session
+        user_id: User UUID
+        amount: Amount to credit (must be positive)
+        reason: Reason for the credit (e.g., "contest_payout")
+        meta: Optional metadata dict with idempotency_key
+    
+    Returns:
+        Tuple of (success: bool, error_message: Optional[str], new_balance: Optional[Decimal])
+    """
+    try:
+        if amount <= 0:
+            return False, "Amount must be positive", None
+        
+        # Check for idempotency if idempotency_key provided
+        if meta and meta.get("idempotency_key"):
+            from app.repos.transaction_repo import get_transaction_by_metadata
+            existing_tx = await get_transaction_by_metadata(
+                session, 
+                {"idempotency_key": meta["idempotency_key"]}
+            )
+            if existing_tx:
+                logger.info(f"Idempotent credit skipped for user {user_id} with key {meta['idempotency_key']}")
+                # Return existing balance
+                wallet = await get_wallet_for_user(session, user_id)
+                return True, None, wallet.winning_balance if wallet else Decimal('0')
+        
+        # Lock the wallet row for update to prevent race conditions
+        result = await session.execute(
+            select(Wallet)
+            .where(Wallet.user_id == user_id)
+            .with_for_update()
+        )
+        wallet = result.scalar_one_or_none()
+        
+        if not wallet:
+            return False, "Wallet not found", None
+        
+        # Calculate new winning balance
+        new_winning_balance = wallet.winning_balance + amount
+        
+        # Update winning balance
+        wallet.winning_balance = new_winning_balance
+        
+        logger.info(f"Credited {amount} to user {user_id} winning balance. New balance: {new_winning_balance}")
+        return True, None, new_winning_balance
+        
+    except Exception as e:
+        logger.error(f"Error crediting winning balance for user {user_id}: {str(e)}")
+        return False, f"Database error: {str(e)}", None
+
+
 async def debit_for_contest_entry(
     session: AsyncSession,
     user_id: UUID,
@@ -295,4 +361,70 @@ async def credit_deposit_atomic(
     except Exception as e:
         await session.rollback()
         logger.error(f"Error crediting deposit for user {user_id}: {str(e)}")
+        return False, f"Database error: {str(e)}", None
+
+
+async def credit_winning_atomic(
+    session: AsyncSession,
+    user_id: UUID,
+    amount: Decimal,
+    reason: str,
+    meta: Optional[dict] = None
+) -> Tuple[bool, Optional[str], Optional[Decimal]]:
+    """
+    Atomically credit user's winning balance with row-level locking.
+    
+    This function uses SELECT FOR UPDATE to prevent race conditions
+    and ensures atomic balance updates within a single transaction.
+    Includes idempotency check via meta["idempotency_key"].
+    
+    Args:
+        session: Database session
+        user_id: User UUID
+        amount: Amount to credit (must be positive)
+        reason: Reason for the credit (e.g., "contest_payout")
+        meta: Optional metadata dict with idempotency_key
+    
+    Returns:
+        Tuple of (success: bool, error_message: Optional[str], new_balance: Optional[Decimal])
+    """
+    try:
+        if amount <= 0:
+            return False, "Amount must be positive", None
+        
+        # Check for idempotency if idempotency_key provided
+        if meta and meta.get("idempotency_key"):
+            from app.repos.transaction_repo import get_transaction_by_metadata
+            existing_tx = await get_transaction_by_metadata(
+                session, 
+                {"idempotency_key": meta["idempotency_key"]}
+            )
+            if existing_tx:
+                logger.info(f"Idempotent credit skipped for user {user_id} with key {meta['idempotency_key']}")
+                # Return existing balance
+                wallet = await get_wallet_for_user(session, user_id)
+                return True, None, wallet.winning_balance if wallet else Decimal('0')
+        
+        # Lock the wallet row for update to prevent race conditions
+        result = await session.execute(
+            select(Wallet)
+            .where(Wallet.user_id == user_id)
+            .with_for_update()
+        )
+        wallet = result.scalar_one_or_none()
+        
+        if not wallet:
+            return False, "Wallet not found", None
+        
+        # Calculate new winning balance
+        new_winning_balance = wallet.winning_balance + amount
+        
+        # Update winning balance
+        wallet.winning_balance = new_winning_balance
+        
+        logger.info(f"Credited {amount} to user {user_id} winning balance. New balance: {new_winning_balance}")
+        return True, None, new_winning_balance
+        
+    except Exception as e:
+        logger.error(f"Error crediting winning balance for user {user_id}: {str(e)}")
         return False, f"Database error: {str(e)}", None

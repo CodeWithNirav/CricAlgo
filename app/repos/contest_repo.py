@@ -2,6 +2,7 @@
 Contest repository for contest management
 """
 
+import time
 from typing import List, Optional
 from uuid import UUID
 from decimal import Decimal
@@ -19,8 +20,8 @@ async def create_contest(
     description: Optional[str],
     entry_fee: Decimal,
     max_participants: int,
-    prize_structure: dict,
-    created_by: UUID
+    prize_structure: list,
+    created_by: Optional[UUID] = None
 ) -> Contest:
     """
     Create a new contest.
@@ -32,21 +33,36 @@ async def create_contest(
         description: Contest description
         entry_fee: Entry fee amount
         max_participants: Maximum number of participants
-        prize_structure: Prize structure as JSON
-        created_by: Admin user ID who created the contest
+        prize_structure: Prize structure as list of position/percentage objects
+        created_by: Admin user ID who created the contest (optional)
     
     Returns:
         Created Contest instance
     """
+    import uuid
+    from uuid import UUID as UUIDType
+    
+    # Generate unique contest code
+    contest_code = f"CONTEST_{int(time.time())}{uuid.uuid4().hex[:6].upper()}"
+    
+    # Convert match_id to UUID if it's a string
+    if isinstance(match_id, str):
+        try:
+            match_uuid = UUIDType(match_id)
+        except ValueError:
+            # If not a valid UUID, generate one from the string
+            match_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, match_id)
+    else:
+        match_uuid = match_id
+    
     contest = Contest(
-        match_id=match_id,
+        match_id=match_uuid,
+        code=contest_code,
         title=title,
-        description=description,
         entry_fee=entry_fee,
-        max_participants=max_participants,
+        max_players=max_participants,
         prize_structure=prize_structure,
-        status=ContestStatus.OPEN,
-        created_by=created_by
+        status=ContestStatus.OPEN
     )
     session.add(contest)
     await session.commit()

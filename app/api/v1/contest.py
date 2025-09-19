@@ -32,7 +32,7 @@ class ContestCreate(BaseModel):
     description: Optional[str] = Field(None, description="Contest description")
     entry_fee: str = Field(..., description="Entry fee in USDT")
     max_participants: int = Field(..., description="Maximum number of participants")
-    prize_structure: Dict[str, Any] = Field(..., description="Prize structure as JSON")
+    prize_structure: List[Dict[str, Any]] = Field(..., description="Prize structure as list of position/percentage objects")
     start_time: Optional[str] = Field(None, description="Contest start time (ISO format)")
     end_time: Optional[str] = Field(None, description="Contest end time (ISO format)")
 
@@ -46,7 +46,7 @@ class ContestResponse(BaseModel):
     entry_fee: str
     max_participants: int
     current_participants: int
-    prize_structure: Dict[str, Any]
+    prize_structure: List[Dict[str, Any]]
     status: str
     created_at: str
 
@@ -95,10 +95,10 @@ async def create_contest_endpoint(
             )
         
         # Validate prize structure
-        if not isinstance(contest_data.prize_structure, dict):
+        if not isinstance(contest_data.prize_structure, list):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Prize structure must be a valid JSON object"
+                detail="Prize structure must be a list of position/percentage objects"
             )
         
         # Create contest

@@ -26,6 +26,7 @@ class Contest(Base):
     commission_pct = Column(Numeric(5, 2), nullable=False, default=0)
     join_cutoff = Column(DateTime(timezone=True), nullable=True)
     status = Column(ENUM(ContestStatus, name='contest_status'), nullable=False, default=ContestStatus.OPEN)
+    settled_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     def __repr__(self):

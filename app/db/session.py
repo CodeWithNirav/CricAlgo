@@ -2,7 +2,6 @@
 Async database session management with connection pooling
 """
 
-from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from app.core.config import settings
 
@@ -29,10 +28,9 @@ AsyncSessionLocal = async_sessionmaker(
 async_session = AsyncSessionLocal
 
 
-@asynccontextmanager
 async def get_db() -> AsyncSession:
     """
-    Async context manager for database sessions.
+    Get a database session for FastAPI dependency injection.
     Provides proper session lifecycle management with connection pooling.
     """
     async with AsyncSessionLocal() as session:
