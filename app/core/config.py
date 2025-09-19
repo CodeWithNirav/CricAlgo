@@ -22,6 +22,28 @@ class Settings(BaseSettings):
     # Redis settings
     redis_url: str = "redis://localhost:6379/0"
     
+    # Celery settings
+    celery_broker_url: str = "redis://localhost:6379/1"
+    celery_result_backend: str = "redis://localhost:6379/2"
+    
+    # JWT settings
+    jwt_secret_key: str = "your-jwt-secret-key-change-in-production"
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expire_minutes: int = 15
+    jwt_refresh_token_expire_days: int = 7
+    
+    # Rate limiting settings
+    rate_limit_requests: int = 30
+    rate_limit_window_seconds: int = 60
+    
+    # Business settings
+    platform_commission_pct: float = 5.0
+    confirmation_threshold: int = 3
+    currency: str = "USDT"
+    
+    # Webhook settings
+    webhook_secret: Optional[str] = None
+    
     # Telegram Bot settings
     telegram_bot_token: Optional[str] = None
     telegram_webhook_url: Optional[str] = None

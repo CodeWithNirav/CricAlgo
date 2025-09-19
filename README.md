@@ -92,9 +92,13 @@ A FastAPI-based cricket algorithm trading bot with Telegram integration, built f
 ## Available Commands
 
 ### Development
-- `make dev` - Start development environment
+- `make dev` - Start development environment (includes worker)
 - `make build` - Build Docker image
 - `make test` - Run tests
+- `make test-unit` - Run unit tests only
+- `make test-integration` - Run integration tests with PostgreSQL
+- `make test-e2e` - Run end-to-end tests with full stack
+- `make test-coverage` - Run tests with coverage report
 - `make lint` - Run linting
 - `make format` - Format code
 - `make clean` - Clean up Docker resources
@@ -104,7 +108,40 @@ A FastAPI-based cricket algorithm trading bot with Telegram integration, built f
 - `make migrate-create` - Create new migration
 - `make shell` - Open shell in app container
 
+### Worker
+- `make worker` - Start Celery worker
+- `make worker-logs` - View worker logs
+
 ## API Endpoints
+
+### Authentication
+- `POST /api/v1/auth/register` - Register new user
+- `POST /api/v1/auth/login` - Login user (admin requires TOTP)
+- `POST /api/v1/auth/refresh` - Refresh access token
+- `GET /api/v1/auth/me` - Get current user info
+
+### Wallet
+- `GET /api/v1/wallet/` - Get wallet balances
+- `POST /api/v1/wallet/withdraw` - Create withdrawal request
+- `GET /api/v1/wallet/transactions` - Get wallet transactions
+
+### Contests
+- `GET /api/v1/contest/` - List contests
+- `GET /api/v1/contest/{id}` - Get contest details
+- `POST /api/v1/contest/{id}/join` - Join contest
+- `POST /api/v1/contest/admin/contest` - Create contest (admin)
+- `POST /api/v1/contest/admin/{id}/settle` - Settle contest (admin)
+
+### Admin
+- `GET /api/v1/admin/users` - List users (admin)
+- `GET /api/v1/admin/users/{id}` - Get user details (admin)
+- `POST /api/v1/admin/transactions/{id}/approve` - Approve withdrawal (admin)
+- `GET /api/v1/admin/audit-logs` - Get audit logs (admin)
+- `GET /api/v1/admin/stats` - Get admin statistics (admin)
+
+### Webhooks
+- `POST /api/v1/webhooks/bep20` - BEP20 transaction confirmations
+- `GET /api/v1/webhooks/health` - Webhook health check
 
 ### Health Check
 - `GET /api/v1/health` - Application health status
@@ -130,6 +167,28 @@ DB_MAX_OVERFLOW=20
 
 # Redis
 REDIS_URL=redis://localhost:6379/0
+
+# Celery
+CELERY_BROKER_URL=redis://localhost:6379/1
+CELERY_RESULT_BACKEND=redis://localhost:6379/2
+
+# JWT Authentication
+JWT_SECRET_KEY=your-jwt-secret-key-change-in-production
+JWT_ALGORITHM=HS256
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=15
+JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
+
+# Rate Limiting
+RATE_LIMIT_REQUESTS=30
+RATE_LIMIT_WINDOW_SECONDS=60
+
+# Business Settings
+PLATFORM_COMMISSION_PCT=5.0
+CONFIRMATION_THRESHOLD=3
+CURRENCY=USDT
+
+# Webhooks
+WEBHOOK_SECRET=your-webhook-secret-key
 
 # Telegram Bot
 TELEGRAM_BOT_TOKEN=your_bot_token_here
@@ -176,6 +235,38 @@ alembic current
 # View migration history
 alembic history
 ```
+
+### Background Worker
+
+The application uses Celery for background task processing:
+
+```bash
+# Start worker with Docker Compose
+docker-compose up worker
+
+# Or start worker manually
+celery -A app.celery_app.celery worker --loglevel=info
+
+# Start worker with specific queues
+celery -A app.celery_app.celery worker --loglevel=info -Q deposits,withdrawals,payouts
+```
+
+### Background Tasks
+
+The application includes several background tasks:
+
+- **`process_deposit`** - Processes deposit confirmations and credits wallets
+- **`process_withdrawal`** - Handles withdrawal requests and external transfers
+- **`compute_and_distribute_payouts`** - Calculates and distributes contest prizes
+
+### Rate Limiting
+
+The application includes rate limiting middleware:
+
+- **Webhook endpoints**: 10 requests per minute per IP
+- **Contest joins**: 5 joins per 5 minutes per user
+- **Auth endpoints**: 10 attempts per 5 minutes per IP
+- **Withdrawals**: 3 withdrawals per hour per user
 
 ### Creating Admin User
 

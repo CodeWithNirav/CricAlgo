@@ -75,3 +75,15 @@ test-services: ## Start test services only (for manual testing)
 
 test-services-stop: ## Stop test services
 	docker-compose -f docker-compose.test.yml down
+
+worker: ## Start Celery worker
+	celery -A app.celery_app.celery worker --loglevel=info --concurrency=2
+
+worker-logs: ## View worker logs
+	docker-compose logs -f worker
+
+worker-shell: ## Open Celery shell
+	celery -A app.celery_app.celery shell
+
+flower: ## Start Flower (Celery monitoring)
+	celery -A app.celery_app.celery flower --port=5555

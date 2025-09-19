@@ -2,10 +2,10 @@
 User repository with async CRUD operations
 """
 
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, desc
 from app.models.user import User
 from app.models.enums import UserStatus
 
@@ -120,3 +120,32 @@ async def update_user(
     await session.commit()
     await session.refresh(user)
     return user
+
+
+async def get_users(
+    session: AsyncSession,
+    limit: int = 50,
+    offset: int = 0,
+    status: Optional[str] = None
+) -> List[User]:
+    """
+    Get list of users.
+    
+    Args:
+        session: Database session
+        limit: Maximum number of users to return
+        offset: Number of users to skip
+        status: Filter by user status
+    
+    Returns:
+        List of User instances
+    """
+    query = select(User).order_by(desc(User.created_at))
+    
+    if status:
+        query = query.where(User.status == UserStatus(status))
+    
+    query = query.limit(limit).offset(offset)
+    
+    result = await session.execute(query)
+    return result.scalars().all()
