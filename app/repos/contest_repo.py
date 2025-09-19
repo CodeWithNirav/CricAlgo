@@ -41,6 +41,8 @@ async def create_contest(
     """
     import uuid
     from uuid import UUID as UUIDType
+    from datetime import datetime, timezone
+    from sqlalchemy import text
     
     # Generate unique contest code
     contest_code = f"CONTEST_{int(time.time())}{uuid.uuid4().hex[:6].upper()}"
@@ -54,6 +56,29 @@ async def create_contest(
             match_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, match_id)
     else:
         match_uuid = match_id
+    
+    # Check if match exists, if not create it
+    match_exists = await session.execute(
+        text("SELECT id FROM matches WHERE id = :match_id"),
+        {"match_id": match_uuid}
+    )
+    
+    if not match_exists.fetchone():
+        # Create a match for this contest
+        await session.execute(
+            text("""
+                INSERT INTO matches (id, external_id, title, start_time, status, created_at)
+                VALUES (:id, :external_id, :title, :start_time, :status, :created_at)
+            """),
+            {
+                "id": match_uuid,
+                "external_id": match_id,
+                "title": f"Match for {title}",
+                "start_time": datetime.now(timezone.utc),
+                "status": "scheduled",
+                "created_at": datetime.now(timezone.utc)
+            }
+        )
     
     contest = Contest(
         match_id=match_uuid,
