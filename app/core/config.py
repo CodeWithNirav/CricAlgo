@@ -2,7 +2,7 @@
 Application configuration using Pydantic BaseSettings
 """
 
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 from typing import Optional
 
 
@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     
     # Database settings
     database_url: str = "postgresql+asyncpg://postgres:password@localhost:5432/cricalgo"
+    db_pool_size: int = 10
+    db_max_overflow: int = 20
     
     # Redis settings
     redis_url: str = "redis://localhost:6379/0"

@@ -125,6 +125,8 @@ DEBUG=true
 
 # Database
 DATABASE_URL=postgresql+asyncpg://postgres:password@localhost:5432/cricalgo
+DB_POOL_SIZE=10
+DB_MAX_OVERFLOW=20
 
 # Redis
 REDIS_URL=redis://localhost:6379/0
@@ -137,6 +139,15 @@ TELEGRAM_WEBHOOK_URL=https://yourdomain.com/webhook
 SECRET_KEY=your-secret-key-change-in-production
 ```
 
+### Database Configuration
+
+The application uses PostgreSQL with connection pooling for optimal performance:
+
+- **DB_POOL_SIZE**: Number of persistent connections to maintain (default: 10)
+- **DB_MAX_OVERFLOW**: Additional connections that can be created on demand (default: 20)
+- **Pool Pre-ping**: Enabled to verify connections before use
+- **Pool Recycle**: Connections are recycled every 3600 seconds (1 hour)
+
 ## Database Schema
 
 The application uses PostgreSQL with the following main entities:
@@ -147,6 +158,44 @@ The application uses PostgreSQL with the following main entities:
 - **Entries** - User participation in contests
 - **Transactions** - Complete transaction ledger
 - **Deposit/Withdraw Requests** - Financial operations
+
+### Database Migrations
+
+The application uses Alembic for database migrations:
+
+```bash
+# Run migrations
+make migrate
+
+# Create new migration
+make migrate-create message="description of changes"
+
+# Check migration status
+alembic current
+
+# View migration history
+alembic history
+```
+
+### Creating Admin User
+
+To create an initial admin user for the application:
+
+```bash
+# Set required environment variables
+export SEED_ADMIN_USERNAME="admin"
+export SEED_ADMIN_EMAIL="admin@cricalgo.com"
+export SEED_ADMIN_PASSWORD="your_secure_password"  # Optional - will generate if not provided
+
+# Run the admin creation script
+python scripts/create_admin.py
+```
+
+The script will:
+- Create an admin user with hashed password
+- Generate a TOTP secret for 2FA
+- Print QR code URL for authenticator app setup
+- Create a regular user account and wallet for the admin
 
 ## Testing
 
@@ -161,6 +210,13 @@ pytest --cov=app
 
 # Run specific test file
 pytest tests/test_health.py
+
+# Run database model tests
+pytest tests/test_db_models.py
+
+# Run tests with PostgreSQL (requires running database)
+docker-compose up -d postgres
+pytest tests/test_db_models.py
 ```
 
 ## Contributing
