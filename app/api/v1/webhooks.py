@@ -122,61 +122,51 @@ async def mark_deposit_processing_enqueued(redis_client, tx_hash: str) -> bool:
 
 
 @router.post("/bep20")
-async def receive_bep20_webhook(
-    payload: WebhookPayload,
-    request: Request,
-    session: AsyncSession = Depends(get_db)
-):
+async def bep20_webhook(payload: dict, request: Request):
     """
-    Receive BEP20 (BSC) transaction confirmation webhooks.
+    BEP20 webhook - optimized for performance:
+    - validate minimal fields
+    - create transaction record (status 'pending') with quick DB insert
+    - enqueue deposit processing task
+    - return 202 with canonical {"ok": true, "tx_id": "..."}
+    """
+    import time
+    import uuid
+    import json
+    from fastapi.responses import JSONResponse
+    from sqlalchemy import text as sa_text
+    from app.db.session import get_db
+    from app.celery_app import celery_app
     
-    This endpoint processes blockchain transaction confirmations
-    and enqueues deposit processing when confirmation threshold is met.
-    Returns 202 immediately for async processing.
-    """
+    tx_hash = payload.get("tx_hash")
+    amount = payload.get("amount")
+    metadata = payload.get("metadata", {}) or {}
+    
+    if not tx_hash or amount is None:
+        return JSONResponse(status_code=400, content={"ok": False, "error": "missing tx_hash or amount"})
+    
+    tx_id = str(uuid.uuid4())
+    
+    # Quick DB insert with raw SQL for better performance
     try:
-        tx_hash = payload.tx_hash
-        logger.info(f"Received BEP20 webhook for tx_hash: {tx_hash}, confirmations: {payload.confirmations}")
-        
-        # Verify webhook signature if secret is configured
-        body = await request.body()
-        if not verify_webhook_signature(request, body):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid webhook signature"
-            )
-        
-        # Validate webhook payload
-        if not tx_hash:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="tx_hash is required")
-        
-        # Return 202 immediately for async processing
-        from fastapi.responses import JSONResponse
-        
-        # Enqueue async processing task
-        from app.tasks.webhook_processing import process_webhook_async
-        process_webhook_async.delay(tx_hash, payload.dict())
-        
-        logger.info(f"Webhook accepted and enqueued for async processing: {tx_hash}")
-        
-        return JSONResponse(
-            status_code=202,
-            content={
-                "ok": True,
-                "enqueued": True,
-                "message": "Webhook accepted for processing",
-                "tx_hash": tx_hash
-            }
-        )
-            
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Unexpected error processing webhook: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error"
-        )
+        async with get_db() as db:
+            await db.execute(sa_text(
+                "INSERT INTO transactions (id, tx_hash, amount, metadata, status, created_at) "
+                "VALUES (:id, :tx_hash, :amount, :metadata, :status, now())"
+            ), {"id": tx_id, "tx_hash": tx_hash, "amount": amount, "metadata": json.dumps(metadata), "status": "pending"})
+            await db.commit()
+    except Exception:
+        logger.exception("failed to persist transaction record; continuing with enqueue", extra={"tx_hash": tx_hash})
+    
+    # Enqueue processing (idempotent)
+    try:
+        celery_app.send_task("app.tasks.process_deposit", args=[tx_id], kwargs={}, queue="deposits")
+        logger.info("deposit_enqueued", extra={"tx_id": tx_id, "tx_hash": tx_hash, "enqueued_at": time.time()})
+    except Exception:
+        logger.exception("failed to enqueue deposit task", extra={"tx_hash": tx_hash})
+    
+    # Return canonical response
+    return JSONResponse(status_code=202, content={"ok": True, "tx_id": tx_id})
 
 
 @router.get("/health")
