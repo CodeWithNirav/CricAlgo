@@ -112,7 +112,7 @@ async def create_contest_endpoint(
         
         return ContestResponse(
             id=str(contest.id),
-            match_id=contest.match_id,
+            match_id=str(contest.match_id),
             title=contest.title,
             entry_fee=str(contest.entry_fee),
             max_participants=contest.max_players,

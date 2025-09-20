@@ -494,7 +494,8 @@ class SmokeTestRunner:
                     self.log_step("Contest created", "success", f"ID: {self.contest_id}")
                     return True
                 else:
-                    self.log_step("Contest creation failed", "error", f"Status: {response.status_code}")
+                    error_detail = response.text if hasattr(response, 'text') else "Unknown error"
+                    self.log_step("Contest creation failed", "error", f"Status: {response.status_code}, Error: {error_detail}")
                     return False
                     
         except Exception as e:
