@@ -2,17 +2,22 @@
 Async database session management with connection pooling
 """
 
+import os
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from app.core.config import settings
+
+# Pool configuration with environment variable overrides
+POOL_SIZE = int(os.getenv("DB_POOL_SIZE", settings.db_pool_size))
+MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", settings.db_max_overflow))
 
 # Create async engine with optimized pooling
 async_engine = create_async_engine(
     settings.database_url,
     echo=settings.debug,
     future=True,
-    pool_size=settings.db_pool_size,
-    max_overflow=settings.db_max_overflow,
+    pool_size=POOL_SIZE,
+    max_overflow=MAX_OVERFLOW,
     pool_pre_ping=True,
     pool_recycle=3600,
     pool_timeout=30,

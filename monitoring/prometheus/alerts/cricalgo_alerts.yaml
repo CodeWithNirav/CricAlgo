@@ -1,12 +1,22 @@
 groups:
 - name: cricalgo.rules
   rules:
+  # HTTP Latency Alerts
   - alert: HTTPHighP95
-    expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 4
+    expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 2
     for: 5m
     labels: { severity: warning }
     annotations:
-      summary: "High HTTP p95 latency (>4s)"
+      summary: "High HTTP p95 latency (>2s)"
+      description: "HTTP p95 latency is {{ $value }}s, above threshold of 2s"
+
+  - alert: HTTPHighP99
+    expr: histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 5
+    for: 3m
+    labels: { severity: critical }
+    annotations:
+      summary: "Critical HTTP p99 latency (>5s)"
+      description: "HTTP p99 latency is {{ $value }}s, above critical threshold of 5s"
 
   - alert: HTTPHighAvg
     expr: (sum(rate(http_request_duration_seconds_sum[5m])) / sum(rate(http_request_duration_seconds_count[5m]))) > 1.0
@@ -14,17 +24,106 @@ groups:
     labels: { severity: warning }
     annotations:
       summary: "High HTTP average latency (>1s)"
+      description: "HTTP average latency is {{ $value }}s, above threshold of 1s"
 
+  # Error Rate Alerts
   - alert: HighErrorRate
-    expr: (sum(rate(http_requests_total{code=~"5.."}[5m])) / sum(rate(http_requests_total[5m]))) > 0.01
+    expr: (sum(rate(http_requests_total{code=~"5.."}[5m])) / sum(rate(http_requests_total[5m]))) > 0.005
     for: 2m
     labels: { severity: critical }
     annotations:
-      summary: "High HTTP 5xx error rate (>1%)"
+      summary: "High HTTP 5xx error rate (>0.5%)"
+      description: "HTTP 5xx error rate is {{ $value | humanizePercentage }}, above critical threshold of 0.5%"
 
+  - alert: ModerateErrorRate
+    expr: (sum(rate(http_requests_total{code=~"5.."}[5m])) / sum(rate(http_requests_total[5m]))) > 0.001
+    for: 5m
+    labels: { severity: warning }
+    annotations:
+      summary: "Moderate HTTP 5xx error rate (>0.1%)"
+      description: "HTTP 5xx error rate is {{ $value | humanizePercentage }}, above warning threshold of 0.1%"
+
+  # Celery Queue Monitoring
   - alert: CeleryQueueDepthHigh
     expr: avg_over_time(celery_queue_length[5m]) > 50
     for: 5m
     labels: { severity: warning }
     annotations:
       summary: "High Celery queue depth"
+      description: "Celery queue depth is {{ $value }}, above threshold of 50"
+
+  - alert: CeleryQueueDepthCritical
+    expr: avg_over_time(celery_queue_length[5m]) > 200
+    for: 2m
+    labels: { severity: critical }
+    annotations:
+      summary: "Critical Celery queue depth"
+      description: "Celery queue depth is {{ $value }}, above critical threshold of 200"
+
+  # Database Connection Pool Alerts
+  - alert: DatabasePoolExhausted
+    expr: (db_pool_connections_active / db_pool_connections_max) > 0.9
+    for: 3m
+    labels: { severity: warning }
+    annotations:
+      summary: "Database connection pool nearly exhausted"
+      description: "Database pool utilization is {{ $value | humanizePercentage }}, above 90%"
+
+  - alert: DatabasePoolCritical
+    expr: (db_pool_connections_active / db_pool_connections_max) > 0.95
+    for: 1m
+    labels: { severity: critical }
+    annotations:
+      summary: "Database connection pool critical"
+      description: "Database pool utilization is {{ $value | humanizePercentage }}, above 95%"
+
+  # Webhook Processing Alerts
+  - alert: WebhookProcessingSlow
+    expr: histogram_quantile(0.95, sum(rate(webhook_processing_duration_seconds_bucket[5m])) by (le)) > 1
+    for: 5m
+    labels: { severity: warning }
+    annotations:
+      summary: "Webhook processing slow"
+      description: "Webhook processing p95 latency is {{ $value }}s, above threshold of 1s"
+
+  - alert: WebhookEnqueueFailed
+    expr: rate(webhook_enqueue_failed_total[5m]) > 0.1
+    for: 2m
+    labels: { severity: critical }
+    annotations:
+      summary: "Webhook enqueue failures detected"
+      description: "Webhook enqueue failure rate is {{ $value }}/s, above threshold of 0.1/s"
+
+  # Deposit Task Processing Alerts
+  - alert: DepositTaskSlow
+    expr: histogram_quantile(0.95, sum(rate(deposit_task_duration_seconds_bucket[5m])) by (le)) > 30
+    for: 5m
+    labels: { severity: warning }
+    annotations:
+      summary: "Deposit task processing slow"
+      description: "Deposit task p95 duration is {{ $value }}s, above threshold of 30s"
+
+  - alert: DepositTaskFailed
+    expr: rate(deposit_task_failed_total[5m]) > 0.05
+    for: 3m
+    labels: { severity: critical }
+    annotations:
+      summary: "Deposit task failures detected"
+      description: "Deposit task failure rate is {{ $value }}/s, above threshold of 0.05/s"
+
+  # System Resource Alerts
+  - alert: HighCPUUsage
+    expr: (100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)) > 80
+    for: 5m
+    labels: { severity: warning }
+    annotations:
+      summary: "High CPU usage"
+      description: "CPU usage is {{ $value }}%, above threshold of 80%"
+
+  - alert: HighMemoryUsage
+    expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.85
+    for: 5m
+    labels: { severity: warning }
+    annotations:
+      summary: "High memory usage"
+      description: "Memory usage is {{ $value | humanizePercentage }}, above threshold of 85%"

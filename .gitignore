@@ -158,3 +158,10 @@ logs/
 # Temporary files
 tmp/
 temp/
+
+# Large artifacts and test outputs
+artifacts/*/k6_output.json
+artifacts/*/k6_*.json
+artifacts/*.zip
+artifacts/*/k6_*.txt
+artifacts/*/k6_*.log

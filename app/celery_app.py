@@ -2,6 +2,7 @@
 Celery application configuration
 """
 
+import os
 from celery import Celery
 from app.core.config import settings
 
@@ -29,8 +30,9 @@ celery.conf.update(
     task_compression="gzip",
     result_compression="gzip",
     result_expires=3600,  # 1 hour
+    worker_concurrency=int(os.getenv("CELERY_WORKER_CONCURRENCY", 4)),  # Default to 4, override with env
     task_routes={
-        "app.tasks.tasks.process_deposit": {"queue": "deposits"},
+        "app.tasks.deposits.process_deposit": {"queue": "deposits"},
         "app.tasks.tasks.process_withdrawal": {"queue": "withdrawals"},
         "app.tasks.tasks.compute_and_distribute_payouts": {"queue": "payouts"},
     },

@@ -1,118 +1,188 @@
 # Performance Rollout Summary
 
 ## Overview
-Successfully applied safe, reversible performance and resiliency fixes to the staging environment, ran comprehensive verification tests, and collected detailed artifacts.
+This document summarizes the comprehensive performance and resilience rollout for CricAlgo staging, implementing horizontal scaling, monitoring, and production-ready deployment practices.
 
-## Changes Implemented
+## What's Implemented
 
-### 1. Webhook Optimization (`app/api/v1/webhooks.py`)
-- **Quick-return pattern**: Optimized webhook handler for faster response times
-- **Raw SQL inserts**: Replaced ORM with direct SQL for better performance
-- **Canonical response**: Standardized `{"ok": true, "tx_id": "..."}` response format
-- **Improved error handling**: Non-blocking database operations with graceful fallbacks
+### ✅ Webhook Optimization
+- **Quick-return pattern**: Webhook handler returns `{"ok": true, "tx_id": "..."}` immediately after enqueueing
+- **Canonical response format**: Consistent 202 status with transaction ID
+- **Resilient to missing users**: Graceful handling of edge cases
+- **Location**: `app/api/v1/webhooks.py`
 
-### 2. Database Pool Configuration (`app/db/session.py`)
-- **Environment-driven config**: Pool size and max overflow now read from environment variables
-- **Optimized defaults**: `DB_POOL_SIZE=20`, `DB_MAX_OVERFLOW=30` for staging
-- **Better connection management**: Improved connection lifecycle and recycling
+### ✅ Instrumentation & Monitoring
+- **Timing logs**: `deposit_task_started` and `deposit_task_completed` with duration metrics
+- **Webhook enqueue logging**: `deposit_enqueued` with timestamps
+- **Enhanced Prometheus alerts**: Comprehensive alerting for latency, error rates, queue depth, and system resources
+- **Location**: `app/tasks/deposits.py`, `monitoring/prometheus/alerts/cricalgo_alerts.yaml`
 
-### 3. Docker Compose Scaling (`docker-compose.staging.yml`)
-- **Load balancing**: Added nginx with upstream configuration for app1, app2, app3
-- **Horizontal scaling**: Multiple app instances (8001, 8002, 8003 ports)
-- **Worker scaling**: Increased Celery worker concurrency to 8
-- **Service orchestration**: Proper dependency management and health checks
+### ✅ Database Pool Configuration
+- **Environment-driven settings**: `DB_POOL_SIZE` and `DB_MAX_OVERFLOW` from environment variables
+- **Optimized pooling**: Pre-ping, recycle, and timeout configurations
+- **Location**: `app/db/session.py`
 
-### 4. Kubernetes HPA Manifests (`k8s/hpa/`)
-- **App HPA**: 3-12 replicas based on CPU utilization (50% target)
-- **Worker HPA**: 2-10 replicas based on CPU utilization (60% target)
-- **Auto-scaling**: Dynamic scaling based on resource usage
+### ✅ Load Balancing & Scaling
+- **Docker Compose**: nginx load balancer with 3 app instances (app1/app2/app3)
+- **Kubernetes HPA**: Auto-scaling for both app and worker deployments
+- **Nginx configuration**: Health checks, failover, and load distribution
+- **Location**: `docker-compose.staging.yml`, `deploy/nginx.conf`, `k8s/hpa/`
 
-### 5. Monitoring & Alerting (`monitoring/prometheus/alerts/`)
-- **Latency alerts**: P95 > 4s, average > 1s
-- **Error rate monitoring**: 5xx errors > 1%
-- **Queue depth alerts**: Celery queue depth > 50
-- **Comprehensive coverage**: End-to-end performance monitoring
+### ✅ Testing Infrastructure
+- **Smoke test script**: Comprehensive deployment validation with artifact collection
+- **Enhanced k6 load test**: Custom metrics, thresholds, and detailed reporting
+- **Performance thresholds**: p95 < 2s, p99 < 5s, error rate < 0.5%
+- **Location**: `scripts/smoke_and_checks.sh`, `load/k6/webhook_test.js`
 
-### 6. Performance Testing Script (`scripts/performance_rollout.ps1`)
-- **Automated deployment**: Docker Compose and Kubernetes deployment
-- **Load testing**: k6 integration with configurable VUs and duration
-- **Artifact collection**: Comprehensive logging and metrics gathering
-- **Health validation**: Service health checks and validation
+### ✅ Canary Deployment
+- **Istio VirtualService**: Progressive traffic routing (10%, 25%, 50%, 100%)
+- **Nginx upstream**: Weight-based canary routing for non-Istio environments
+- **Rollback procedures**: Quick rollback commands and procedures
+- **Location**: `k8s/istio/virtualservice-canary-*.yaml`, `k8s/nginx/upstream-weight.conf`
 
-## Test Results
-
-### Load Test Performance (5-minute k6 run)
-- **Total Requests**: 37,680
-- **Virtual Users**: 100
-- **Error Rate**: 0.00% ✅
-- **Average Response Time**: 300.43ms
-- **95th Percentile**: 1.48s
-- **Throughput**: 123 requests/second
-- **Test Status**: **PASS** ✅
-
-### Key Metrics
-- **Webhook Response Time**: < 500ms (67% of requests)
-- **Health Check Response**: < 100ms (97% of requests)
-- **Zero Failed Requests**: Perfect reliability
-- **Consistent Performance**: Stable throughout 5-minute test
-
-## Artifacts Collected
-
-### Test Artifacts (`artifacts/perf_full_run_20250920T143543Z/`)
-- `k6_long.txt`: Complete k6 test output
-- `k6_smoke_short.txt`: Quick smoke test results
-- `test_summary.json`: Test pass/fail verdict
-- `compose_ps.txt`: Docker Compose service status
-- `nginx_health.json`: Load balancer health check
-- `app1_tail.log`, `app2_tail.log`, `app3_tail.log`: Application logs
-- `worker_tail.log`: Celery worker logs
-- `nginx_tail.log`: Load balancer logs
-
-## Deployment Architecture
-
-### Docker Compose Setup
-```
-nginx (port 8000) -> load balances to:
-├── app1 (port 8001)
-├── app2 (port 8002)
-└── app3 (port 8003)
-
-worker (4 instances) -> processes deposits queue
-```
-
-### Kubernetes HPA
-- **App Deployment**: Auto-scales 3-12 replicas
-- **Worker Deployment**: Auto-scales 2-10 replicas
-- **Resource-based scaling**: CPU utilization triggers
+### ✅ Production Runbook
+- **Comprehensive deployment guide**: Step-by-step canary rollout procedures
+- **Monitoring checklists**: Performance metrics and alerting thresholds
+- **Troubleshooting guide**: Common issues and resolution steps
+- **Escalation procedures**: Contact information and escalation paths
+- **Location**: `docs/runbook_prod_rollout.md`
 
 ## Performance Improvements
 
-1. **Response Time**: Optimized webhook handler for faster processing
-2. **Throughput**: Load balancing across multiple app instances
-3. **Reliability**: Zero error rate under sustained load
-4. **Scalability**: Auto-scaling based on resource usage
-5. **Monitoring**: Comprehensive alerting for proactive issue detection
+### Webhook Processing
+- **Response time**: Sub-second webhook responses with quick-return pattern
+- **Throughput**: Horizontal scaling enables higher concurrent request handling
+- **Resilience**: Graceful error handling and retry mechanisms
 
-## Safety & Reversibility
+### Database Performance
+- **Connection pooling**: Optimized pool settings for high concurrency
+- **Environment tuning**: Configurable pool size and overflow settings
+- **Monitoring**: Pool utilization alerts and metrics
 
-- **Backup files**: All modified files backed up with timestamps
-- **Staging-only**: Changes applied only to staging environment
-- **Rollback ready**: Easy rollback via git revert
-- **Non-breaking**: All changes are backward compatible
+### System Monitoring
+- **Comprehensive alerting**: 15+ alert rules covering all critical metrics
+- **Performance thresholds**: Clear targets for latency, error rates, and resource usage
+- **Operational visibility**: Detailed logging and metrics collection
+
+## Deployment Architecture
+
+### Local Staging (Docker Compose)
+```
+nginx (LB) → app1:8000
+           → app2:8000  
+           → app3:8000
+```
+
+### Kubernetes Staging
+```
+Ingress → nginx (LB) → app pods (HPA: 3-12 replicas)
+                    → worker pods (HPA: 2-10 replicas)
+```
+
+### Canary Deployment Flow
+1. Deploy canary with `version=canary` label
+2. Route 10% traffic to canary
+3. Monitor for 30-60 minutes
+4. Progressively increase to 25%, 50%, 100%
+5. Promote canary to stable or rollback if issues
+
+## Testing & Validation
+
+### Smoke Test
+```bash
+./scripts/smoke_and_checks.sh
+```
+- Health check validation
+- Webhook submission testing
+- User registration testing (if available)
+- Transaction query testing (if available)
+- Metrics endpoint validation
+
+### Load Testing
+```bash
+# Light test
+k6 run --vus 20 --duration 1m load/k6/webhook_test.js
+
+# Full test
+k6 run --vus 100 --duration 5m load/k6/webhook_test.js
+```
+- Custom metrics for webhook and health endpoints
+- Performance thresholds validation
+- Detailed reporting and artifact generation
+
+## Monitoring & Alerting
+
+### Key Metrics
+- **HTTP Latency**: p95 < 2s, p99 < 5s
+- **Error Rate**: < 0.5% 5xx errors
+- **Queue Depth**: < 50 Celery tasks
+- **DB Pool**: < 90% utilization
+- **System Resources**: < 80% CPU, < 85% memory
+
+### Alert Rules
+- HTTP latency alerts (p95, p99, average)
+- Error rate monitoring (critical and warning thresholds)
+- Celery queue depth monitoring
+- Database connection pool alerts
+- Webhook processing performance
+- System resource utilization
+
+## Files Modified/Created
+
+### Core Application
+- `app/api/v1/webhooks.py` - Quick-return webhook handler (already implemented)
+- `app/tasks/deposits.py` - Enhanced timing logs (already implemented)
+- `app/db/session.py` - Environment-driven pool config (already implemented)
+
+### Infrastructure
+- `docker-compose.staging.yml` - Multi-app setup with nginx LB (already implemented)
+- `deploy/nginx.conf` - Load balancer configuration (already implemented)
+- `k8s/hpa/app-hpa.yaml` - App auto-scaling (already implemented)
+- `k8s/hpa/worker-hpa.yaml` - Worker auto-scaling (already implemented)
+
+### Monitoring
+- `monitoring/prometheus/alerts/cricalgo_alerts.yaml` - Enhanced alert rules
+
+### Testing
+- `scripts/smoke_and_checks.sh` - Comprehensive smoke test script
+- `load/k6/webhook_test.js` - Enhanced load test with custom metrics
+
+### Canary Deployment
+- `k8s/istio/virtualservice-canary-10.yaml` - 10% canary routing
+- `k8s/istio/virtualservice-canary-25.yaml` - 25% canary routing
+- `k8s/istio/virtualservice-canary-50.yaml` - 50% canary routing
+- `k8s/istio/virtualservice-canary-100.yaml` - 100% canary routing
+- `k8s/nginx/upstream-weight.conf` - Nginx canary configuration
+
+### Documentation
+- `docs/runbook_prod_rollout.md` - Production deployment runbook
 
 ## Next Steps
 
-1. **Production deployment**: Apply changes to production with monitoring
-2. **Performance monitoring**: Set up Prometheus alerts in production
-3. **Capacity planning**: Use test results for production sizing
-4. **Continuous monitoring**: Regular performance testing and optimization
+1. **Deploy to staging** and run smoke tests
+2. **Execute load tests** to validate performance improvements
+3. **Configure monitoring** dashboards and alert channels
+4. **Test canary deployment** procedures
+5. **Train team** on new monitoring and deployment procedures
+6. **Schedule production rollout** during maintenance window
 
-## Branch Information
-- **Branch**: `perf/full-rollout-d013fc09`
-- **Commit**: `8968931`
-- **Test Date**: 2025-09-20T14:35:43Z
-- **Duration**: ~45 minutes (within timebox)
+## Rollback Plan
 
-## Conclusion
+### Immediate Rollback
+```bash
+# Kubernetes
+kubectl -n cricalgo-staging rollout undo deployment/app
+kubectl -n cricalgo-staging rollout undo deployment/worker
 
-The performance rollout was **successful** with all tests passing and significant performance improvements achieved. The system demonstrated excellent reliability under load with zero errors and consistent response times. The implementation is production-ready with comprehensive monitoring and auto-scaling capabilities.
+# Docker Compose
+docker-compose -f docker-compose.staging.yml down
+mv docker-compose.staging.yml.bak docker-compose.staging.yml
+docker-compose -f docker-compose.staging.yml up -d
+```
+
+### Monitoring Rollback
+- Restore previous Prometheus alert rules
+- Revert monitoring configuration changes
+- Update dashboard configurations
+
+This rollout provides a solid foundation for production-ready performance and monitoring, with comprehensive testing and rollback procedures.
