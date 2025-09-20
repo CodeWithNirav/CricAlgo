@@ -1,0 +1,126 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-upstream-canary-10
+  namespace: prod
+data:
+  nginx.conf: |
+    upstream cricalgo_backend {
+        # Stable backend (90% traffic)
+        server app-stable.cricalgo-staging.svc.cluster.local:8000 weight=90 max_fails=3 fail_timeout=30s;
+        # Canary backend (10% traffic)
+        server app-canary.cricalgo-staging.svc.cluster.local:8000 weight=10 max_fails=3 fail_timeout=30s;
+        
+        # Health check configuration
+        keepalive 32;
+        keepalive_requests 100;
+        keepalive_timeout 60s;
+    }
+    
+    server {
+        listen 80;
+        server_name api.cricalgo-staging.example.com;
+        
+        # Rate limiting
+        limit_req_zone $binary_remote_addr zone=api:10m rate=100r/s;
+        limit_req zone=api burst=200 nodelay;
+        
+        # Health check endpoint
+        location /nginx-health {
+            access_log off;
+            return 200 "healthy\n";
+            add_header Content-Type text/plain;
+        }
+        
+        # Main API proxy
+        location / {
+            proxy_pass http://cricalgo_backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            
+            # Timeouts
+            proxy_connect_timeout 5s;
+            proxy_send_timeout 30s;
+            proxy_read_timeout 30s;
+            
+            # Retry configuration
+            proxy_next_upstream error timeout invalid_header http_500 http_502 http_503 http_504;
+            proxy_next_upstream_tries 3;
+            proxy_next_upstream_timeout 10s;
+            
+            # Buffer configuration
+            proxy_buffering on;
+            proxy_buffer_size 4k;
+            proxy_buffers 8 4k;
+            proxy_busy_buffers_size 8k;
+        }
+        
+        # Metrics endpoint for monitoring
+        location /nginx-metrics {
+            access_log off;
+            return 200 "nginx_up 1\n";
+            add_header Content-Type text/plain;
+        }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-canary-10
+  namespace: prod
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx-canary-10
+  template:
+    metadata:
+      labels:
+        app: nginx-canary-10
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.21-alpine
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/conf.d
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+        livenessProbe:
+          httpGet:
+            path: /nginx-health
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /nginx-health
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: nginx-upstream-canary-10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-canary-10-service
+  namespace: prod
+spec:
+  selector:
+    app: nginx-canary-10
+  ports:
+  - port: 80
+    targetPort: 80
+  type: ClusterIP

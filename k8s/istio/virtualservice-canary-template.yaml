@@ -1,0 +1,68 @@
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: app-destination
+  namespace: prod
+spec:
+  host: app.cricalgo-staging.svc.cluster.local
+  subsets:
+    - name: stable
+      labels:
+        version: stable
+    - name: canary
+      labels:
+        version: canary
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: app-virtualservice-canary-WEIGHT_PLACEHOLDER
+  namespace: prod
+spec:
+  hosts:
+  - "api.cricalgo-staging.example.com"
+  http:
+  - route:
+    - destination:
+        host: app.cricalgo-staging.svc.cluster.local
+        subset: stable
+      weight: WEIGHT_STABLE_PLACEHOLDER
+    - destination:
+        host: app.cricalgo-staging.svc.cluster.local
+        subset: canary
+      weight: WEIGHT_CANARY_PLACEHOLDER
+    retries:
+      attempts: 2
+      perTryTimeout: 2s
+      retryOn: gateway-error,connect-failure,refused-stream
+    timeout: 30s
+    fault:
+      # Optional: Add fault injection for testing
+      delay:
+        percentage:
+          value: 0
+        fixedDelay: 0s
+      abort:
+        percentage:
+          value: 0
+        httpStatus: 500
+  # Circuit breaker configuration
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        http1MaxPendingRequests: 50
+        http2MaxRequests: 100
+        maxRequestsPerConnection: 2
+        maxRetries: 3
+        consecutiveGatewayErrors: 5
+        interval: 30s
+        baseEjectionTime: 30s
+        maxEjectionPercent: 50
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+      minHealthPercent: 30
