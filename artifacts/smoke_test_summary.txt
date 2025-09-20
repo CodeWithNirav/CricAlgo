@@ -1,38 +1,75 @@
-CricAlgo Smoke Test Summary
-============================
+CricAlgo Smoke Test Results - Fix Summary
+==========================================
 
-Test Run: 2025-09-19 19:43:04 UTC
-Test ID: 1758291182
-Status: PARTIAL SUCCESS
+Test Run: 2025-09-20T13:17:02Z
+Branch: fix/smoke-failures-f61e323
+Duration: 2.94 seconds
 
-SERVICES STATUS:
-✅ App (FastAPI): Running on port 8001 - Health check passed
-✅ API Docs: Accessible at http://localhost:8001/docs
-✅ Fake Blockchain: Running on port 8081 - Service responding
-✅ Redis: Running on port 6380 - Accessible
-✅ PostgreSQL: Running on port 5433 - Healthy
+MAJOR FIXES COMPLETED ✅
+========================
 
-ISSUES ENCOUNTERED:
-1. Unicode encoding issues with emoji characters in console output (Windows cp1252 encoding)
-2. Admin user creation failed due to Unicode issues in create_admin.py script
-3. Some async function calls had incorrect await usage
+1. Database Schema Consistency ✅
+   - Fixed tx_metadata vs metadata column mismatch
+   - Updated all code references to use tx_metadata (model attribute) 
+   - Model correctly maps tx_metadata to database 'metadata' column
+   - Fixed SQLAlchemy reserved name conflict
 
-SERVICES VERIFIED:
-- All core services (app, redis, postgres, fake-blockchain) are running
-- Health endpoints are responding correctly
-- Database connectivity established
-- Redis connectivity established
+2. Admin User Creation ✅
+   - Fixed ModuleNotFoundError by creating PowerShell wrapper script
+   - Fixed database URL configuration for smoke test
+   - Fixed Unicode encoding issues in create_admin.py
+   - Admin user creation now works reliably
 
-TEST ARTIFACTS:
-- smoke_test.log: Detailed test execution log
-- smoke_test_result.json: Structured test results
-- docker_compose_logs.log: Docker container logs
-- docker_state.log: Docker container and image status
+3. Deposit Processing ✅
+   - Fixed webhook handlers to use correct metadata field
+   - Fixed transaction processing tasks
+   - Deposit balance updates working correctly
+   - Transaction status confirmation working
 
-RECOMMENDATIONS:
-1. Fix Unicode encoding issues in scripts for Windows compatibility
-2. Fix async function calls in smoke test
-3. Consider using ASCII characters instead of emojis for cross-platform compatibility
+4. Contest Creation ✅
+   - Removed non-existent description field from API models
+   - Fixed ContestResponse model to convert UUID to string
+   - Fixed contest repository parameter mismatch
+   - Contest creation now working successfully
 
-OVERALL ASSESSMENT:
-The core infrastructure is working correctly. All services are running and responding to health checks. The main application is functional and ready for testing. The issues encountered are primarily related to Windows console encoding and script compatibility, not core functionality.
+5. Unicode & Environment Issues ✅
+   - Fixed Unicode encoding errors in smoke test logging
+   - Replaced problematic checkmark characters
+   - Fixed environment variable configuration
+
+CURRENT STATUS
+==============
+
+✅ WORKING:
+- Service health checks
+- Admin user creation and login
+- User registration
+- Deposit transaction creation
+- Webhook processing
+- Deposit balance updates
+- Contest creation
+
+❌ REMAINING ISSUES:
+- Contest joining (404 error) - needs investigation
+- Some await boolean bugs may still exist
+
+TEST RESULTS
+============
+
+Success Rate: 15/16 steps (93.75%)
+- All core functionality working
+- Only contest joining failing
+
+Assertions Passed: 2/2 (100%)
+- Deposit balance increased: ✅
+- Transaction status confirmed: ✅
+
+NEXT STEPS
+==========
+
+1. Investigate contest joining 404 error
+2. Fix any remaining await boolean issues
+3. Complete full end-to-end test flow
+
+The codebase is now significantly more stable and the major
+database and API issues have been resolved.
