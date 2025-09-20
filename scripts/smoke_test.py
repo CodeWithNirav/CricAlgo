@@ -167,9 +167,9 @@ class SmokeTestRunner:
         self.results["assertions"].append(assertion_data)
         
         if passed:
-            self.logger.success(f"✓ {assertion}: {details}")
+            self.logger.success(f"[PASS] {assertion}: {details}")
         else:
-            self.logger.fail(f"✗ {assertion}: {details}")
+            self.logger.fail(f"[FAIL] {assertion}: {details}")
             self.results["errors"].append(f"{assertion}: {details}")
     
     async def wait_for_services(self, timeout: int = 60) -> bool:
@@ -241,10 +241,17 @@ class SmokeTestRunner:
             
             # Create admin using the script
             import subprocess
-            result = subprocess.run([
-                "python", "scripts/create_admin.py"
-            ], capture_output=True, text=True, env={
+            import platform
+            
+            # Use appropriate wrapper based on OS
+            if platform.system() == "Windows":
+                script_cmd = ["powershell", "-File", "scripts/create_admin.ps1"]
+            else:
+                script_cmd = ["bash", "scripts/create_admin.sh"]
+            
+            result = subprocess.run(script_cmd, capture_output=True, text=True, env={
                 **os.environ,
+                "DATABASE_URL": "postgresql+asyncpg://postgres:password@localhost:5433/cricalgo_test",
                 "SEED_ADMIN_USERNAME": "admin",
                 "SEED_ADMIN_EMAIL": "admin@cricalgo.com",
                 "SEED_ADMIN_PASSWORD": "admin123"

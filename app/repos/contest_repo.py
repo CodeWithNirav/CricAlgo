@@ -17,7 +17,6 @@ async def create_contest(
     session: AsyncSession,
     match_id: str,
     title: str,
-    description: Optional[str],
     entry_fee: Decimal,
     max_participants: int,
     prize_structure: list,
@@ -30,7 +29,6 @@ async def create_contest(
         session: Database session
         match_id: Cricket match ID
         title: Contest title
-        description: Contest description
         entry_fee: Entry fee amount
         max_participants: Maximum number of participants
         prize_structure: Prize structure as list of position/percentage objects

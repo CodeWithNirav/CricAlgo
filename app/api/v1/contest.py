@@ -29,7 +29,6 @@ class ContestCreate(BaseModel):
     """Contest creation request model"""
     match_id: str = Field(..., description="Cricket match ID")
     title: str = Field(..., description="Contest title")
-    description: Optional[str] = Field(None, description="Contest description")
     entry_fee: str = Field(..., description="Entry fee in USDT")
     max_participants: int = Field(..., description="Maximum number of participants")
     prize_structure: List[Dict[str, Any]] = Field(..., description="Prize structure as list of position/percentage objects")
@@ -42,7 +41,6 @@ class ContestResponse(BaseModel):
     id: str
     match_id: str
     title: str
-    description: Optional[str]
     entry_fee: str
     max_participants: int
     current_participants: int
@@ -106,7 +104,6 @@ async def create_contest_endpoint(
             session=session,
             match_id=contest_data.match_id,
             title=contest_data.title,
-            description=contest_data.description,
             entry_fee=entry_fee,
             max_participants=contest_data.max_participants,
             prize_structure=contest_data.prize_structure,
@@ -117,7 +114,6 @@ async def create_contest_endpoint(
             id=str(contest.id),
             match_id=contest.match_id,
             title=contest.title,
-            description=contest.description,
             entry_fee=str(contest.entry_fee),
             max_participants=contest.max_players,
             current_participants=0,  # New contest has no participants
@@ -315,7 +311,6 @@ async def get_contests_endpoint(
                 "id": str(contest.id),
                 "match_id": contest.match_id,
                 "title": contest.title,
-                "description": contest.description,
                 "entry_fee": str(contest.entry_fee),
                 "max_participants": contest.max_participants,
                 "current_participants": len(await get_contest_entries(session, contest.id)),
@@ -354,7 +349,6 @@ async def get_contest_endpoint(
             "id": str(contest.id),
             "match_id": contest.match_id,
             "title": contest.title,
-            "description": contest.description,
             "entry_fee": str(contest.entry_fee),
             "max_participants": contest.max_participants,
             "current_participants": len(entries),
