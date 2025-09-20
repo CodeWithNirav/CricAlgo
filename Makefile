@@ -108,3 +108,49 @@ smoke: ## Run complete smoke test (up + test + down)
 	$(MAKE) smoke-test
 	$(MAKE) smoke-down
 	@echo "Smoke test complete!"
+
+# Deployment targets
+build-images: ## Build all Docker images
+	@echo "Building app image..."
+	docker build -t cricalgo/app:latest .
+	@echo "Building worker image..."
+	docker build -t cricalgo/worker:latest --target worker .
+	@echo "Building bot image..."
+	docker build -f Dockerfile.bot -t cricalgo/bot:latest .
+
+push-images: ## Push images to registry
+	@echo "Pushing images to registry..."
+	docker push cricalgo/app:latest
+	docker push cricalgo/worker:latest
+	docker push cricalgo/bot:latest
+
+deploy-staging: ## Deploy to staging environment
+	@echo "Deploying to staging..."
+	kubectl apply -f k8s/namespace.yaml
+	kubectl apply -f k8s/configmap.yaml
+	kubectl apply -f k8s/secret.yaml
+	kubectl apply -f k8s/app-deployment.yaml
+	kubectl apply -f k8s/worker-deployment.yaml
+	kubectl apply -f k8s/bot-deployment.yaml
+	kubectl apply -f k8s/services.yaml
+	kubectl apply -f k8s/ingress.yaml
+	@echo "Waiting for rollout..."
+	kubectl rollout status deployment/cricalgo-app -n cricalgo-staging --timeout=300s
+	kubectl rollout status deployment/cricalgo-worker -n cricalgo-staging --timeout=300s
+	kubectl rollout status deployment/cricalgo-bot -n cricalgo-staging --timeout=300s
+	@echo "Deployment complete!"
+
+# Bot targets
+bot-polling: ## Start bot in polling mode
+	python run_polling.py
+
+bot-webhook: ## Start bot in webhook mode
+	python run_webhook.py
+
+bot-docker: ## Run bot with Docker Compose
+	docker-compose -f docker-compose.bot.yml up --build
+
+# Load testing
+load-test: ## Run K6 load tests
+	@echo "Running load tests..."
+	k6 run load/k6/webhook_test.js

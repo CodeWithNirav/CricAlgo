@@ -1,0 +1,92 @@
+groups:
+- name: cricalgo-alerts
+  rules:
+  - alert: HighErrorRate
+    expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High error rate detected"
+      description: "Error rate is {{ $value | humanizePercentage }} for the last 5 minutes"
+  
+  - alert: HighResponseTime
+    expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High response time detected"
+      description: "95th percentile response time is {{ $value }}s"
+  
+  - alert: ServiceDown
+    expr: up{job=~"cricalgo-.*"} == 0
+    for: 2m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Service is down"
+      description: "{{ $labels.job }} has been down for more than 2 minutes"
+  
+  - alert: HighActiveConnections
+    expr: http_active_connections > 1000
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High number of active connections"
+      description: "Active connections: {{ $value }}"
+  
+  - alert: WebhookFailureRate
+    expr: rate(webhook_requests_total{status="failed"}[5m]) / rate(webhook_requests_total[5m]) > 0.1
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High webhook failure rate"
+      description: "Webhook failure rate is {{ $value | humanizePercentage }}"
+  
+  - alert: DepositProcessingFailure
+    expr: rate(deposits_total{status="failed"}[5m]) > 0.1
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Deposit processing failures"
+      description: "Deposit failure rate is {{ $value }} per second"
+  
+  - alert: ContestJoinFailure
+    expr: rate(contest_joins_total{status="failed"}[5m]) > 0.1
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Contest join failures"
+      description: "Contest join failure rate is {{ $value }} per second"
+  
+  - alert: DatabaseConnectionFailure
+    expr: up{job="postgres"} == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Database connection failed"
+      description: "PostgreSQL database is not accessible"
+  
+  - alert: RedisConnectionFailure
+    expr: up{job="redis"} == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Redis connection failed"
+      description: "Redis cache is not accessible"
+  
+  - alert: BotNotResponding
+    expr: up{job="cricalgo-bot"} == 0
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Telegram bot is not responding"
+      description: "CricAlgo bot has been down for more than 5 minutes"

@@ -41,6 +41,12 @@ slowapi==0.1.9
 # Prometheus metrics
 prometheus-client==0.19.0
 
+# Sentry integration
+sentry-sdk[fastapi]==1.38.0
+
+# Load testing
+k6==0.0.1
+
 # Linting and formatting
 ruff==0.1.6
 black==23.11.0

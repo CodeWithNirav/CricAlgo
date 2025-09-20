@@ -50,3 +50,18 @@ async def get_db_session() -> AsyncSession:
     Use this for FastAPI dependency injection.
     """
     return AsyncSessionLocal()
+
+
+async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
+    """
+    Get an async database session generator.
+    Use this for bot handlers and other async contexts.
+    """
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()

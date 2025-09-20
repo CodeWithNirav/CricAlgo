@@ -111,6 +111,31 @@ async def get_admin_by_user_id(session: AsyncSession, user_id: UUID) -> Optional
     return result.scalar_one_or_none()
 
 
+async def get_admin_by_telegram_id(session: AsyncSession, telegram_id: int) -> Optional[Admin]:
+    """
+    Get admin by Telegram ID.
+    
+    Args:
+        session: Database session
+        telegram_id: Telegram user ID
+    
+    Returns:
+        Admin instance or None if not found
+    """
+    # First get the user by telegram_id
+    from app.repos.user_repo import get_user_by_telegram_id
+    
+    user = await get_user_by_telegram_id(session, telegram_id)
+    if not user:
+        return None
+    
+    # Check if there's an admin with the same username
+    result = await session.execute(
+        select(Admin).where(Admin.username == user.username)
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_all_admins(session: AsyncSession) -> list[Admin]:
     """
     Get all admin users.

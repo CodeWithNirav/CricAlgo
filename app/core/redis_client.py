@@ -33,6 +33,16 @@ async def get_redis() -> redis.Redis:
     return _redis_client
 
 
+async def get_redis_client() -> redis.Redis:
+    """
+    Get Redis client instance (alias for get_redis).
+    
+    Returns:
+        Redis client instance
+    """
+    return await get_redis()
+
+
 async def close_redis():
     """Close Redis client connection."""
     global _redis_client

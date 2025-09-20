@@ -22,10 +22,11 @@ async def get_token_info(
 ):
     """
     Debug endpoint to introspect token claims and user info.
-    Only available when ENABLE_DEBUG_ENDPOINT=true
+    Only available when ENABLE_DEBUG_ENDPOINT=true and in development environment
     """
-    # Check if debug endpoints are enabled
-    if not os.getenv("ENABLE_DEBUG_ENDPOINT", "false").lower() == "true":
+    # Check if debug endpoints are enabled and in development
+    if (not os.getenv("ENABLE_DEBUG_ENDPOINT", "false").lower() == "true" or 
+        os.getenv("APP_ENV", "development") == "production"):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Debug endpoints not enabled"
