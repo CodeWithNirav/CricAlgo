@@ -1,0 +1,12 @@
+{
+  "timestamp": "2025-09-20T17:46:00Z",
+  "note": "Prometheus not accessible during test",
+  "metrics": {
+    "http_request_duration_seconds_bucket": "N/A - Prometheus not available",
+    "http_request_duration_seconds_sum": "N/A - Prometheus not available", 
+    "http_request_duration_seconds_count": "N/A - Prometheus not available",
+    "webhook_count_total": "N/A - Prometheus not available",
+    "deposit_processed_total": "N/A - Prometheus not available",
+    "celery_queue_depth": "N/A - Prometheus not available"
+  }
+}

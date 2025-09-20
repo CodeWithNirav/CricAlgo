@@ -1,0 +1,79 @@
+{
+  "test_summary": {
+    "duration": "5m",
+    "virtual_users": 100,
+    "total_requests": 17399,
+    "total_iterations": 8709,
+    "throughput_rps": 54.78
+  },
+  "performance_metrics": {
+    "http_req_duration": {
+      "avg": "1.3s",
+      "min": "2ms", 
+      "median": "826.54ms",
+      "max": "17.62s",
+      "p90": "3s",
+      "p95": "3.88s"
+    },
+    "http_req_duration_expected_response": {
+      "avg": "683.17ms",
+      "min": "2ms",
+      "median": "506.76ms", 
+      "max": "7.61s",
+      "p90": "1.44s",
+      "p95": "1.99s"
+    },
+    "iteration_duration": {
+      "avg": "3.47s",
+      "min": "1.01s",
+      "median": "3.37s",
+      "max": "19.28s",
+      "p90": "5.34s",
+      "p95": "6.06s"
+    }
+  },
+  "error_analysis": {
+    "http_req_failed_rate": "50.05%",
+    "total_failed_requests": 8709,
+    "checks_succeeded": "25.89%",
+    "checks_failed": "74.10%",
+    "webhook_status_200": "0%",
+    "webhook_response_time_ok": "18%",
+    "webhook_response_ok_field": "0%",
+    "health_status_200": "100%",
+    "health_response_time_ok": "10%"
+  },
+  "threshold_analysis": {
+    "p95_latency": {
+      "threshold": "500ms",
+      "actual": "3.88s",
+      "status": "FAIL",
+      "exceeded_by": "676%"
+    },
+    "avg_latency": {
+      "threshold": "200ms", 
+      "actual": "1.3s",
+      "status": "FAIL",
+      "exceeded_by": "550%"
+    },
+    "error_rate": {
+      "threshold": "1%",
+      "actual": "50.05%",
+      "status": "FAIL", 
+      "exceeded_by": "4905%"
+    },
+    "throughput_min": {
+      "threshold": "30 req/s",
+      "actual": "54.78 req/s",
+      "status": "PASS",
+      "exceeded_by": "82.6%"
+    }
+  },
+  "verdict": "FAIL",
+  "primary_issues": [
+    "Extremely high error rate (50.05%)",
+    "Very high latency (P95: 3.88s, Avg: 1.3s)",
+    "Webhook endpoint completely failing (0% success rate)",
+    "Health endpoint partially failing (10% response time compliance)"
+  ]
+}

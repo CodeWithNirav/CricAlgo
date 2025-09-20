@@ -2,11 +2,11 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 
 export let options = {
-  vus: 50,
-  duration: '60s',
+  vus: 100,
+  duration: '5m',
   thresholds: {
     http_req_duration: ['p(95)<500'], // 95% of requests must complete below 500ms
-    http_req_failed: ['rate<0.02'], // Error rate must be below 2%
+    http_req_failed: ['rate<0.01'], // Error rate must be below 1%
   },
 };
 
@@ -36,11 +36,7 @@ export default function() {
 
   // Add HMAC signature if secret is provided
   if (WEBHOOK_SECRET && WEBHOOK_SECRET !== 'your-webhook-secret-key') {
-    const crypto = require('crypto');
-    const signature = crypto
-      .createHmac('sha256', WEBHOOK_SECRET)
-      .update(JSON.stringify(webhookPayload))
-      .digest('hex');
+    const signature = crypto.hmac('sha256', WEBHOOK_SECRET, JSON.stringify(webhookPayload), 'hex');
     headers['X-Webhook-Signature'] = `sha256=${signature}`;
   }
 
