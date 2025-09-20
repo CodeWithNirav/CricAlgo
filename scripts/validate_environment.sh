@@ -206,7 +206,7 @@ validate_manifests() {
     log_success "Manifests: Directory exists"
     
     # Check for required manifest files
-    local required_files=("canary-10.yaml" "canary-25.yaml" "canary-50.yaml" "canary-100.yaml")
+    local required_files=("virtualservice-canary-10.yaml" "virtualservice-canary-25.yaml" "virtualservice-canary-50.yaml" "virtualservice-canary-100.yaml")
     local all_files_exist=true
     
     for file in "${required_files[@]}"; do
