@@ -1,0 +1,49 @@
+{
+  "timestamp": "2025-09-20T17:11:37Z",
+  "branch": "fix/contest-schema-c0f6d56",
+  "status": "SUCCESS",
+  "summary": {
+    "schema_changes_applied": true,
+    "models_updated": true,
+    "tests_passed": true,
+    "migration_created": true
+  },
+  "changes_made": {
+    "database_schema": {
+      "contests_table": {
+        "added_columns": ["settled_at", "updated_at"],
+        "enum_updated": "Added 'settled' to contest_status enum",
+        "table_renamed": "entries -> contest_entries"
+      },
+      "contest_entries_table": {
+        "added_columns": ["payout_tx_id"],
+        "table_renamed": "entries -> contest_entries"
+      }
+    },
+    "models_updated": {
+      "Contest": {
+        "added_fields": ["settled_at", "updated_at"],
+        "updated_fields": ["prize_structure -> JSONB", "status -> enum with settled"]
+      },
+      "ContestEntry": {
+        "added_fields": ["payout_tx_id"],
+        "table_name": "contest_entries"
+      }
+    }
+  },
+  "migration_file": "alembic/versions/0005_normalize_contests_schema.py",
+  "test_results": {
+    "schema_verification": "PASSED",
+    "contest_creation": "PASSED",
+    "contest_entry_creation": "PASSED",
+    "field_updates": "PASSED"
+  },
+  "artifacts": [
+    "psql_contests_schema.txt",
+    "psql_entries_schema.txt", 
+    "psql_contests_schema_final.txt",
+    "psql_contest_entries_schema_final.txt",
+    "test_contest_create_join.log",
+    "test_summary.json"
+  ]
+}

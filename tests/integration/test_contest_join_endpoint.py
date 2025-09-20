@@ -42,11 +42,9 @@ async def test_contest_join_endpoint_success():
             session=session,
             match_id="test_match_123",
             title="Test Contest",
-            description="Test contest for join testing",
             entry_fee=Decimal("1.0"),
             max_participants=10,
-            prize_structure=[{"pos": 1, "pct": 100}],
-            status=ContestStatus.OPEN
+            prize_structure=[{"pos": 1, "pct": 100}]
         )
         
         # Create access token
@@ -82,11 +80,9 @@ async def test_contest_join_endpoint_unauthorized():
             session=session,
             match_id="test_match_456",
             title="Test Contest 2",
-            description="Test contest for auth testing",
             entry_fee=Decimal("1.0"),
             max_participants=10,
-            prize_structure=[{"pos": 1, "pct": 100}],
-            status=ContestStatus.OPEN
+            prize_structure=[{"pos": 1, "pct": 100}]
         )
         
         # Test join endpoint without auth
@@ -115,11 +111,9 @@ async def test_contest_join_endpoint_insufficient_funds():
             session=session,
             match_id="test_match_789",
             title="Test Contest 3",
-            description="Test contest for funds testing",
             entry_fee=Decimal("5.0"),
             max_participants=10,
-            prize_structure=[{"pos": 1, "pct": 100}],
-            status=ContestStatus.OPEN
+            prize_structure=[{"pos": 1, "pct": 100}]
         )
         
         # Create access token
@@ -188,12 +182,14 @@ async def test_contest_join_endpoint_contest_closed():
             session=session,
             match_id="test_match_closed",
             title="Closed Contest",
-            description="Test contest that's closed",
             entry_fee=Decimal("1.0"),
             max_participants=10,
-            prize_structure=[{"pos": 1, "pct": 100}],
-            status=ContestStatus.CLOSED
+            prize_structure=[{"pos": 1, "pct": 100}]
         )
+        
+        # Update contest status to closed
+        contest.status = ContestStatus.CLOSED
+        await session.commit()
         
         # Create access token
         token = create_access_token({"sub": str(user.id)})

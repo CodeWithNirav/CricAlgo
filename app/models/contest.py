@@ -3,8 +3,7 @@ Contest model matching the DDL schema
 """
 
 from sqlalchemy import Column, String, Numeric, DateTime, Integer
-from sqlalchemy.dialects.postgresql import UUID, ENUM
-from sqlalchemy import JSON
+from sqlalchemy.dialects.postgresql import UUID, ENUM, JSONB
 from sqlalchemy.sql import func
 from app.db.base import Base
 from app.models.enums import ContestStatus
@@ -22,12 +21,13 @@ class Contest(Base):
     entry_fee = Column(Numeric(30, 8), nullable=False, default=0)
     currency = Column(String(16), nullable=False, default='USDT')
     max_players = Column(Integer, nullable=True)
-    prize_structure = Column(JSON, nullable=False, default={})
+    prize_structure = Column(JSONB, nullable=False, default={})
     commission_pct = Column(Numeric(5, 2), nullable=False, default=0)
     join_cutoff = Column(DateTime(timezone=True), nullable=True)
-    status = Column(ENUM('scheduled', 'open', 'closed', 'cancelled', 'settled', name='contest_status'), nullable=False, default='open')
+    status = Column(ENUM(ContestStatus, name='contest_status'), nullable=False, default=ContestStatus.OPEN)
     settled_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     def __repr__(self):
         return f"<Contest(id={self.id}, code={self.code}, title={self.title}, entry_fee={self.entry_fee})>"
