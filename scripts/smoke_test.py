@@ -103,7 +103,7 @@ class SmokeTestRunner:
             self.fake_blockchain_url = "http://fake-blockchain:8081"
         else:
             # Running outside Docker - use localhost with exposed ports
-            self.base_url = "http://localhost:8001"
+            self.base_url = "http://localhost:8000"
             self.fake_blockchain_url = "http://localhost:8081"
         self.artifacts_dir = "artifacts"
         self.log_file = f"{self.artifacts_dir}/smoke_test.log"

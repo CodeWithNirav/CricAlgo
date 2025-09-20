@@ -32,12 +32,17 @@ async def create_audit_log(
     Returns:
         Created AuditLog instance
     """
+    # Include resource info in details since the model doesn't have separate fields
+    enhanced_details = {
+        **details,
+        "resource_type": resource_type,
+        "resource_id": str(resource_id)
+    }
+    
     audit_log = AuditLog(
         admin_id=admin_id,
         action=action,
-        resource_type=resource_type,
-        resource_id=resource_id,
-        details=details
+        details=enhanced_details
     )
     session.add(audit_log)
     await session.commit()

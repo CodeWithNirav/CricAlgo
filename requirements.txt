@@ -45,7 +45,7 @@ prometheus-client==0.19.0
 sentry-sdk[fastapi]==1.38.0
 
 # Load testing
-k6==0.0.1
+k6==0.57.0
 
 # Linting and formatting
 ruff==0.1.6

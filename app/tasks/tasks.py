@@ -284,7 +284,7 @@ def compute_and_distribute_payouts(self, contest_id: str):
                     return False
                 
                 # Calculate total prize pool
-                total_entry_fees = sum(entry.entry_fee for entry in entries)
+                total_entry_fees = sum(entry.amount_debited for entry in entries)
                 commission_rate = Decimal(str(settings.platform_commission_pct / 100))
                 total_commission = total_entry_fees * commission_rate
                 prize_pool = total_entry_fees - total_commission
@@ -353,7 +353,7 @@ def compute_and_distribute_payouts(self, contest_id: str):
                 # Create audit log
                 await create_audit_log(
                     session=session,
-                    admin_id=contest.created_by,  # Contest creator
+                    admin_id=None,  # System action
                     action="distribute_payouts",
                     resource_type="contest",
                     resource_id=contest_uuid,
@@ -369,9 +369,27 @@ def compute_and_distribute_payouts(self, contest_id: str):
                 logger.info(f"Successfully distributed payouts for contest {contest_id}: {total_distributed} distributed")
                 return True
         
-        # Run async function
+        # Run async function in a separate thread with its own event loop
         import asyncio
-        return asyncio.run(_process())
+        import threading
+        import concurrent.futures
+        
+        def run_async():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                return loop.run_until_complete(_process())
+            finally:
+                loop.close()
+                # Clean up any remaining tasks
+                try:
+                    loop.run_until_complete(loop.shutdown_asyncgens())
+                except:
+                    pass
+        
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(run_async)
+            return future.result()
         
     except Exception as exc:
         logger.error(f"Error computing payouts for contest {contest_id}: {exc}")

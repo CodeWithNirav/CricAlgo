@@ -29,10 +29,17 @@ async def create_contest_entry(
     Returns:
         Created ContestEntry instance
     """
+    import time
+    import uuid
+    
+    # Generate unique entry code
+    entry_code = f"ENTRY_{int(time.time())}{uuid.uuid4().hex[:6].upper()}"
+    
     entry = ContestEntry(
         contest_id=contest_id,
         user_id=user_id,
-        entry_fee=entry_fee
+        entry_code=entry_code,
+        amount_debited=entry_fee
     )
     session.add(entry)
     await session.commit()

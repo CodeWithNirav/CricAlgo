@@ -74,25 +74,35 @@ app.add_middleware(RateLimitMiddleware, redis_client=None)
 async def metrics_middleware(request: Request, call_next):
     start_time = time.time()
     ACTIVE_CONNECTIONS.inc()
+    response = None
     
     try:
         response = await call_next(request)
         return response
+    except Exception as e:
+        # Create a default response for metrics if an exception occurs
+        from fastapi.responses import JSONResponse
+        response = JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error"}
+        )
+        raise e
     finally:
         duration = time.time() - start_time
         ACTIVE_CONNECTIONS.dec()
         
-        # Record metrics
-        REQUEST_COUNT.labels(
-            method=request.method,
-            endpoint=request.url.path,
-            status=response.status_code
-        ).inc()
-        
-        REQUEST_DURATION.labels(
-            method=request.method,
-            endpoint=request.url.path
-        ).observe(duration)
+        # Record metrics only if response is available
+        if response:
+            REQUEST_COUNT.labels(
+                method=request.method,
+                endpoint=request.url.path,
+                status=response.status_code
+            ).inc()
+            
+            REQUEST_DURATION.labels(
+                method=request.method,
+                endpoint=request.url.path
+            ).observe(duration)
 
 # Add metrics endpoint
 @app.get("/metrics")
