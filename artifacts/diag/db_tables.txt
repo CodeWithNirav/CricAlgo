@@ -1,0 +1,16 @@
+﻿               List of relations
+ Schema |       Name        | Type  |  Owner   
+--------+-------------------+-------+----------
+ public | admins            | table | postgres
+ public | audit_logs        | table | postgres
+ public | contests          | table | postgres
+ public | deposit_requests  | table | postgres
+ public | entries           | table | postgres
+ public | invitation_codes  | table | postgres
+ public | matches           | table | postgres
+ public | transactions      | table | postgres
+ public | users             | table | postgres
+ public | wallets           | table | postgres
+ public | withdraw_requests | table | postgres
+(11 rows)
+

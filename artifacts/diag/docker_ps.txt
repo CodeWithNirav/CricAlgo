@@ -1,0 +1,6 @@
+﻿NAME                         IMAGE                      COMMAND                  SERVICE           CREATED          STATUS                      PORTS
+cricalgo-app-1               cricalgo-app               "uvicorn app.main:apÔÇª"   app               17 minutes ago   Up 17 minutes (unhealthy)   0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp
+cricalgo-fake-blockchain-1   cricalgo-fake-blockchain   "python tests/e2e/faÔÇª"   fake-blockchain   2 hours ago      Up 2 hours                  0.0.0.0:8081->8081/tcp, [::]:8081->8081/tcp
+cricalgo-postgres-1          postgres:15                "docker-entrypoint.sÔÇª"   postgres          17 minutes ago   Up 17 minutes               0.0.0.0:5432->5432/tcp, [::]:5432->5432/tcp
+cricalgo-redis-1             redis:latest               "docker-entrypoint.sÔÇª"   redis             17 minutes ago   Up 17 minutes               0.0.0.0:6379->6379/tcp, [::]:6379->6379/tcp
+cricalgo-worker-1            cricalgo-worker            "celery -A app.celerÔÇª"   worker            17 minutes ago   Up 17 minutes (unhealthy)   8000/tcp

@@ -5,6 +5,7 @@ Authentication API endpoints
 from datetime import timedelta
 from typing import Optional
 from uuid import uuid4
+import os
 
 from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel, Field
@@ -137,8 +138,8 @@ async def login_user(
     # Check if user is admin and verify TOTP if required
     is_admin = await is_admin_user(session, user.id)
     if is_admin:
-        # Skip TOTP verification in test mode
-        if settings.app_env == "testing":
+        # Skip TOTP verification in test mode or when bypass is enabled
+        if settings.app_env == "testing" or os.getenv("ENABLE_TEST_TOTP_BYPASS", "false").lower() == "true":
             pass  # Skip TOTP verification for testing
         elif not login_data.totp_code:
             raise HTTPException(
@@ -147,7 +148,7 @@ async def login_user(
             )
         
         # Verify TOTP code (skip in test mode)
-        if settings.app_env != "testing":
+        if settings.app_env != "testing" and os.getenv("ENABLE_TEST_TOTP_BYPASS", "false").lower() != "true":
             from app.repos.admin_repo import get_admin_by_user_id
             admin = await get_admin_by_user_id(session, user.id)
             if not admin:

@@ -1,0 +1,1725 @@
+﻿{
+    "openapi":  "3.1.0",
+    "info":  {
+                 "title":  "CricAlgo API",
+                 "description":  "Cricket Algorithm Trading Bot API",
+                 "version":  "0.1.0"
+             },
+    "paths":  {
+                  "/metrics":  {
+                                   "get":  {
+                                               "summary":  "Metrics",
+                                               "description":  "Prometheus metrics endpoint",
+                                               "operationId":  "metrics_metrics_get",
+                                               "responses":  {
+                                                                 "200":  {
+                                                                             "description":  "Successful Response",
+                                                                             "content":  {
+                                                                                             "application/json":  {
+                                                                                                                      "schema":  {
+
+                                                                                                                                 }
+                                                                                                                  }
+                                                                                         }
+                                                                         }
+                                                             }
+                                           }
+                               },
+                  "/api/v1/health":  {
+                                         "get":  {
+                                                     "tags":  [
+                                                                  "health"
+                                                              ],
+                                                     "summary":  "Health Check",
+                                                     "description":  "Health check endpoint\nReturns HTTP 200 with status ok",
+                                                     "operationId":  "health_check_api_v1_health_get",
+                                                     "responses":  {
+                                                                       "200":  {
+                                                                                   "description":  "Successful Response",
+                                                                                   "content":  {
+                                                                                                   "application/json":  {
+                                                                                                                            "schema":  {
+
+                                                                                                                                       }
+                                                                                                                        }
+                                                                                               }
+                                                                               }
+                                                                   }
+                                                 }
+                                     },
+                  "/api/v1/webhooks/bep20":  {
+                                                 "post":  {
+                                                              "tags":  [
+                                                                           "webhooks"
+                                                                       ],
+                                                              "summary":  "Receive Bep20 Webhook",
+                                                              "description":  "Receive BEP20 (BSC) transaction confirmation webhooks.\n\nThis endpoint processes blockchain transaction confirmations\nand updates user wallet balances accordingly.",
+                                                              "operationId":  "receive_bep20_webhook_api_v1_webhooks_bep20_post",
+                                                              "requestBody":  {
+                                                                                  "content":  {
+                                                                                                  "application/json":  {
+                                                                                                                           "schema":  {
+                                                                                                                                          "$ref":  "#/components/schemas/WebhookPayload"
+                                                                                                                                      }
+                                                                                                                       }
+                                                                                              },
+                                                                                  "required":  true
+                                                                              },
+                                                              "responses":  {
+                                                                                "200":  {
+                                                                                            "description":  "Successful Response",
+                                                                                            "content":  {
+                                                                                                            "application/json":  {
+                                                                                                                                     "schema":  {
+                                                                                                                                                    "$ref":  "#/components/schemas/WebhookResponse"
+                                                                                                                                                }
+                                                                                                                                 }
+                                                                                                        }
+                                                                                        },
+                                                                                "422":  {
+                                                                                            "description":  "Validation Error",
+                                                                                            "content":  {
+                                                                                                            "application/json":  {
+                                                                                                                                     "schema":  {
+                                                                                                                                                    "$ref":  "#/components/schemas/HTTPValidationError"
+                                                                                                                                                }
+                                                                                                                                 }
+                                                                                                        }
+                                                                                        }
+                                                                            }
+                                                          }
+                                             },
+                  "/api/v1/webhooks/health":  {
+                                                  "get":  {
+                                                              "tags":  [
+                                                                           "webhooks"
+                                                                       ],
+                                                              "summary":  "Webhook Health",
+                                                              "description":  "Health check for webhook endpoints.",
+                                                              "operationId":  "webhook_health_api_v1_webhooks_health_get",
+                                                              "responses":  {
+                                                                                "200":  {
+                                                                                            "description":  "Successful Response",
+                                                                                            "content":  {
+                                                                                                            "application/json":  {
+                                                                                                                                     "schema":  {
+
+                                                                                                                                                }
+                                                                                                                                 }
+                                                                                                        }
+                                                                                        }
+                                                                            }
+                                                          }
+                                              },
+                  "/api/v1/register":  {
+                                           "post":  {
+                                                        "tags":  [
+                                                                     "authentication"
+                                                                 ],
+                                                        "summary":  "Register User",
+                                                        "description":  "Register a new user and create their wallet.\n\nCreates a user account with optional Telegram ID and returns JWT tokens.",
+                                                        "operationId":  "register_user_api_v1_register_post",
+                                                        "requestBody":  {
+                                                                            "content":  {
+                                                                                            "application/json":  {
+                                                                                                                     "schema":  {
+                                                                                                                                    "$ref":  "#/components/schemas/UserRegister"
+                                                                                                                                }
+                                                                                                                 }
+                                                                                        },
+                                                                            "required":  true
+                                                                        },
+                                                        "responses":  {
+                                                                          "200":  {
+                                                                                      "description":  "Successful Response",
+                                                                                      "content":  {
+                                                                                                      "application/json":  {
+                                                                                                                               "schema":  {
+                                                                                                                                              "$ref":  "#/components/schemas/TokenResponse"
+                                                                                                                                          }
+                                                                                                                           }
+                                                                                                  }
+                                                                                  },
+                                                                          "422":  {
+                                                                                      "description":  "Validation Error",
+                                                                                      "content":  {
+                                                                                                      "application/json":  {
+                                                                                                                               "schema":  {
+                                                                                                                                              "$ref":  "#/components/schemas/HTTPValidationError"
+                                                                                                                                          }
+                                                                                                                           }
+                                                                                                  }
+                                                                                  }
+                                                                      }
+                                                    }
+                                       },
+                  "/api/v1/login":  {
+                                        "post":  {
+                                                     "tags":  [
+                                                                  "authentication"
+                                                              ],
+                                                     "summary":  "Login User",
+                                                     "description":  "Login user with username/password.\n\nFor admin users, TOTP code is required.",
+                                                     "operationId":  "login_user_api_v1_login_post",
+                                                     "requestBody":  {
+                                                                         "content":  {
+                                                                                         "application/json":  {
+                                                                                                                  "schema":  {
+                                                                                                                                 "$ref":  "#/components/schemas/UserLogin"
+                                                                                                                             }
+                                                                                                              }
+                                                                                     },
+                                                                         "required":  true
+                                                                     },
+                                                     "responses":  {
+                                                                       "200":  {
+                                                                                   "description":  "Successful Response",
+                                                                                   "content":  {
+                                                                                                   "application/json":  {
+                                                                                                                            "schema":  {
+                                                                                                                                           "$ref":  "#/components/schemas/TokenResponse"
+                                                                                                                                       }
+                                                                                                                        }
+                                                                                               }
+                                                                               },
+                                                                       "422":  {
+                                                                                   "description":  "Validation Error",
+                                                                                   "content":  {
+                                                                                                   "application/json":  {
+                                                                                                                            "schema":  {
+                                                                                                                                           "$ref":  "#/components/schemas/HTTPValidationError"
+                                                                                                                                       }
+                                                                                                                        }
+                                                                                               }
+                                                                               }
+                                                                   }
+                                                 }
+                                    },
+                  "/api/v1/refresh":  {
+                                          "post":  {
+                                                       "tags":  [
+                                                                    "authentication"
+                                                                ],
+                                                       "summary":  "Refresh Token",
+                                                       "description":  "Refresh access token using refresh token.",
+                                                       "operationId":  "refresh_token_api_v1_refresh_post",
+                                                       "requestBody":  {
+                                                                           "content":  {
+                                                                                           "application/json":  {
+                                                                                                                    "schema":  {
+                                                                                                                                   "$ref":  "#/components/schemas/RefreshTokenRequest"
+                                                                                                                               }
+                                                                                                                }
+                                                                                       },
+                                                                           "required":  true
+                                                                       },
+                                                       "responses":  {
+                                                                         "200":  {
+                                                                                     "description":  "Successful Response",
+                                                                                     "content":  {
+                                                                                                     "application/json":  {
+                                                                                                                              "schema":  {
+                                                                                                                                             "$ref":  "#/components/schemas/TokenResponse"
+                                                                                                                                         }
+                                                                                                                          }
+                                                                                                 }
+                                                                                 },
+                                                                         "422":  {
+                                                                                     "description":  "Validation Error",
+                                                                                     "content":  {
+                                                                                                     "application/json":  {
+                                                                                                                              "schema":  {
+                                                                                                                                             "$ref":  "#/components/schemas/HTTPValidationError"
+                                                                                                                                         }
+                                                                                                                          }
+                                                                                                 }
+                                                                                 }
+                                                                     }
+                                                   }
+                                      },
+                  "/api/v1/me":  {
+                                     "get":  {
+                                                 "tags":  [
+                                                              "authentication"
+                                                          ],
+                                                 "summary":  "Get Current User Info",
+                                                 "description":  "Get current user information.",
+                                                 "operationId":  "get_current_user_info_api_v1_me_get",
+                                                 "responses":  {
+                                                                   "200":  {
+                                                                               "description":  "Successful Response",
+                                                                               "content":  {
+                                                                                               "application/json":  {
+                                                                                                                        "schema":  {
+
+                                                                                                                                   }
+                                                                                                                    }
+                                                                                           }
+                                                                           }
+                                                               },
+                                                 "security":  [
+                                                                  {
+                                                                      "HTTPBearer":  [
+
+                                                                                     ]
+                                                                  }
+                                                              ]
+                                             }
+                                 },
+                  "/api/v1/":  {
+                                   "get":  {
+                                               "tags":  [
+                                                            "contest"
+                                                        ],
+                                               "summary":  "Get Contests Endpoint",
+                                               "description":  "Get list of contests.",
+                                               "operationId":  "get_contests_endpoint_api_v1__get",
+                                               "parameters":  [
+                                                                  {
+                                                                      "name":  "limit",
+                                                                      "in":  "query",
+                                                                      "required":  false,
+                                                                      "schema":  {
+                                                                                     "type":  "integer",
+                                                                                     "default":  50,
+                                                                                     "title":  "Limit"
+                                                                                 }
+                                                                  },
+                                                                  {
+                                                                      "name":  "offset",
+                                                                      "in":  "query",
+                                                                      "required":  false,
+                                                                      "schema":  {
+                                                                                     "type":  "integer",
+                                                                                     "default":  0,
+                                                                                     "title":  "Offset"
+                                                                                 }
+                                                                  },
+                                                                  {
+                                                                      "name":  "status_filter",
+                                                                      "in":  "query",
+                                                                      "required":  false,
+                                                                      "schema":  {
+                                                                                     "anyOf":  [
+                                                                                                   {
+                                                                                                       "type":  "string"
+                                                                                                   },
+                                                                                                   {
+                                                                                                       "type":  "null"
+                                                                                                   }
+                                                                                               ],
+                                                                                     "title":  "Status Filter"
+                                                                                 }
+                                                                  }
+                                                              ],
+                                               "responses":  {
+                                                                 "200":  {
+                                                                             "description":  "Successful Response",
+                                                                             "content":  {
+                                                                                             "application/json":  {
+                                                                                                                      "schema":  {
+
+                                                                                                                                 }
+                                                                                                                  }
+                                                                                         }
+                                                                         },
+                                                                 "422":  {
+                                                                             "description":  "Validation Error",
+                                                                             "content":  {
+                                                                                             "application/json":  {
+                                                                                                                      "schema":  {
+                                                                                                                                     "$ref":  "#/components/schemas/HTTPValidationError"
+                                                                                                                                 }
+                                                                                                                  }
+                                                                                         }
+                                                                         }
+                                                             }
+                                           }
+                               },
+                  "/api/v1/withdraw":  {
+                                           "post":  {
+                                                        "tags":  [
+                                                                     "wallet"
+                                                                 ],
+                                                        "summary":  "Create Withdrawal Request",
+                                                        "description":  "Create a withdrawal request.\n\nCreates a pending withdrawal transaction and enqueues a background task\nto process the withdrawal.",
+                                                        "operationId":  "create_withdrawal_request_api_v1_withdraw_post",
+                                                        "requestBody":  {
+                                                                            "content":  {
+                                                                                            "application/json":  {
+                                                                                                                     "schema":  {
+                                                                                                                                    "$ref":  "#/components/schemas/WithdrawalRequest"
+                                                                                                                                }
+                                                                                                                 }
+                                                                                        },
+                                                                            "required":  true
+                                                                        },
+                                                        "responses":  {
+                                                                          "200":  {
+                                                                                      "description":  "Successful Response",
+                                                                                      "content":  {
+                                                                                                      "application/json":  {
+                                                                                                                               "schema":  {
+                                                                                                                                              "$ref":  "#/components/schemas/WithdrawalResponse"
+                                                                                                                                          }
+                                                                                                                           }
+                                                                                                  }
+                                                                                  },
+                                                                          "422":  {
+                                                                                      "description":  "Validation Error",
+                                                                                      "content":  {
+                                                                                                      "application/json":  {
+                                                                                                                               "schema":  {
+                                                                                                                                              "$ref":  "#/components/schemas/HTTPValidationError"
+                                                                                                                                          }
+                                                                                                                           }
+                                                                                                  }
+                                                                                  }
+                                                                      },
+                                                        "security":  [
+                                                                         {
+                                                                             "HTTPBearer":  [
+
+                                                                                            ]
+                                                                         }
+                                                                     ]
+                                                    }
+                                       },
+                  "/api/v1/transactions":  {
+                                               "get":  {
+                                                           "tags":  [
+                                                                        "wallet"
+                                                                    ],
+                                                           "summary":  "Get Wallet Transactions",
+                                                           "description":  "Get user\u0027s wallet transactions.",
+                                                           "operationId":  "get_wallet_transactions_api_v1_transactions_get",
+                                                           "security":  [
+                                                                            {
+                                                                                "HTTPBearer":  [
+
+                                                                                               ]
+                                                                            }
+                                                                        ],
+                                                           "parameters":  [
+                                                                              {
+                                                                                  "name":  "limit",
+                                                                                  "in":  "query",
+                                                                                  "required":  false,
+                                                                                  "schema":  {
+                                                                                                 "type":  "integer",
+                                                                                                 "default":  50,
+                                                                                                 "title":  "Limit"
+                                                                                             }
+                                                                              },
+                                                                              {
+                                                                                  "name":  "offset",
+                                                                                  "in":  "query",
+                                                                                  "required":  false,
+                                                                                  "schema":  {
+                                                                                                 "type":  "integer",
+                                                                                                 "default":  0,
+                                                                                                 "title":  "Offset"
+                                                                                             }
+                                                                              }
+                                                                          ],
+                                                           "responses":  {
+                                                                             "200":  {
+                                                                                         "description":  "Successful Response",
+                                                                                         "content":  {
+                                                                                                         "application/json":  {
+                                                                                                                                  "schema":  {
+
+                                                                                                                                             }
+                                                                                                                              }
+                                                                                                     }
+                                                                                     },
+                                                                             "422":  {
+                                                                                         "description":  "Validation Error",
+                                                                                         "content":  {
+                                                                                                         "application/json":  {
+                                                                                                                                  "schema":  {
+                                                                                                                                                 "$ref":  "#/components/schemas/HTTPValidationError"
+                                                                                                                                             }
+                                                                                                                              }
+                                                                                                     }
+                                                                                     }
+                                                                         }
+                                                       }
+                                           },
+                  "/api/v1/admin/contest":  {
+                                                "post":  {
+                                                             "tags":  [
+                                                                          "contest"
+                                                                      ],
+                                                             "summary":  "Create Contest Endpoint",
+                                                             "description":  "Create a new contest (admin only).",
+                                                             "operationId":  "create_contest_endpoint_api_v1_admin_contest_post",
+                                                             "requestBody":  {
+                                                                                 "content":  {
+                                                                                                 "application/json":  {
+                                                                                                                          "schema":  {
+                                                                                                                                         "$ref":  "#/components/schemas/ContestCreate"
+                                                                                                                                     }
+                                                                                                                      }
+                                                                                             },
+                                                                                 "required":  true
+                                                                             },
+                                                             "responses":  {
+                                                                               "200":  {
+                                                                                           "description":  "Successful Response",
+                                                                                           "content":  {
+                                                                                                           "application/json":  {
+                                                                                                                                    "schema":  {
+                                                                                                                                                   "$ref":  "#/components/schemas/ContestResponse"
+                                                                                                                                               }
+                                                                                                                                }
+                                                                                                       }
+                                                                                       },
+                                                                               "422":  {
+                                                                                           "description":  "Validation Error",
+                                                                                           "content":  {
+                                                                                                           "application/json":  {
+                                                                                                                                    "schema":  {
+                                                                                                                                                   "$ref":  "#/components/schemas/HTTPValidationError"
+                                                                                                                                               }
+                                                                                                                                }
+                                                                                                       }
+                                                                                       }
+                                                                           },
+                                                             "security":  [
+                                                                              {
+                                                                                  "HTTPBearer":  [
+
+                                                                                                 ]
+                                                                              }
+                                                                          ]
+                                                         }
+                                            },
+                  "/api/v1/contest/{contest_id}/join":  {
+                                                            "post":  {
+                                                                         "tags":  [
+                                                                                      "contest"
+                                                                                  ],
+                                                                         "summary":  "Join Contest Endpoint",
+                                                                         "description":  "Join a contest.\n\nAtomically debits user\u0027s wallet and creates a contest entry.\nIf contest becomes full, enqueues payout computation task.",
+                                                                         "operationId":  "join_contest_endpoint_api_v1_contest__contest_id__join_post",
+                                                                         "security":  [
+                                                                                          {
+                                                                                              "HTTPBearer":  [
+
+                                                                                                             ]
+                                                                                          }
+                                                                                      ],
+                                                                         "parameters":  [
+                                                                                            {
+                                                                                                "name":  "contest_id",
+                                                                                                "in":  "path",
+                                                                                                "required":  true,
+                                                                                                "schema":  {
+                                                                                                               "type":  "string",
+                                                                                                               "title":  "Contest Id"
+                                                                                                           }
+                                                                                            }
+                                                                                        ],
+                                                                         "responses":  {
+                                                                                           "200":  {
+                                                                                                       "description":  "Successful Response",
+                                                                                                       "content":  {
+                                                                                                                       "application/json":  {
+                                                                                                                                                "schema":  {
+                                                                                                                                                               "$ref":  "#/components/schemas/ContestJoinResponse"
+                                                                                                                                                           }
+                                                                                                                                            }
+                                                                                                                   }
+                                                                                                   },
+                                                                                           "422":  {
+                                                                                                       "description":  "Validation Error",
+                                                                                                       "content":  {
+                                                                                                                       "application/json":  {
+                                                                                                                                                "schema":  {
+                                                                                                                                                               "$ref":  "#/components/schemas/HTTPValidationError"
+                                                                                                                                                           }
+                                                                                                                                            }
+                                                                                                                   }
+                                                                                                   }
+                                                                                       }
+                                                                     }
+                                                        },
+                  "/api/v1/admin/{contest_id}/settle":  {
+                                                            "post":  {
+                                                                         "tags":  [
+                                                                                      "contest"
+                                                                                  ],
+                                                                         "summary":  "Settle Contest Endpoint",
+                                                                         "description":  "Manually trigger contest settlement (admin only).\n\nComputes winners and enqueues payout distribution.",
+                                                                         "operationId":  "settle_contest_endpoint_api_v1_admin__contest_id__settle_post",
+                                                                         "security":  [
+                                                                                          {
+                                                                                              "HTTPBearer":  [
+
+                                                                                                             ]
+                                                                                          }
+                                                                                      ],
+                                                                         "parameters":  [
+                                                                                            {
+                                                                                                "name":  "contest_id",
+                                                                                                "in":  "path",
+                                                                                                "required":  true,
+                                                                                                "schema":  {
+                                                                                                               "type":  "string",
+                                                                                                               "title":  "Contest Id"
+                                                                                                           }
+                                                                                            }
+                                                                                        ],
+                                                                         "responses":  {
+                                                                                           "200":  {
+                                                                                                       "description":  "Successful Response",
+                                                                                                       "content":  {
+                                                                                                                       "application/json":  {
+                                                                                                                                                "schema":  {
+                                                                                                                                                               "$ref":  "#/components/schemas/ContestSettleResponse"
+                                                                                                                                                           }
+                                                                                                                                            }
+                                                                                                                   }
+                                                                                                   },
+                                                                                           "422":  {
+                                                                                                       "description":  "Validation Error",
+                                                                                                       "content":  {
+                                                                                                                       "application/json":  {
+                                                                                                                                                "schema":  {
+                                                                                                                                                               "$ref":  "#/components/schemas/HTTPValidationError"
+                                                                                                                                                           }
+                                                                                                                                            }
+                                                                                                                   }
+                                                                                                   }
+                                                                                       }
+                                                                     }
+                                                        },
+                  "/api/v1/contest/{contest_id}":  {
+                                                       "get":  {
+                                                                   "tags":  [
+                                                                                "contest"
+                                                                            ],
+                                                                   "summary":  "Get Contest Endpoint",
+                                                                   "description":  "Get contest details.",
+                                                                   "operationId":  "get_contest_endpoint_api_v1_contest__contest_id__get",
+                                                                   "parameters":  [
+                                                                                      {
+                                                                                          "name":  "contest_id",
+                                                                                          "in":  "path",
+                                                                                          "required":  true,
+                                                                                          "schema":  {
+                                                                                                         "type":  "string",
+                                                                                                         "title":  "Contest Id"
+                                                                                                     }
+                                                                                      }
+                                                                                  ],
+                                                                   "responses":  {
+                                                                                     "200":  {
+                                                                                                 "description":  "Successful Response",
+                                                                                                 "content":  {
+                                                                                                                 "application/json":  {
+                                                                                                                                          "schema":  {
+
+                                                                                                                                                     }
+                                                                                                                                      }
+                                                                                                             }
+                                                                                             },
+                                                                                     "422":  {
+                                                                                                 "description":  "Validation Error",
+                                                                                                 "content":  {
+                                                                                                                 "application/json":  {
+                                                                                                                                          "schema":  {
+                                                                                                                                                         "$ref":  "#/components/schemas/HTTPValidationError"
+                                                                                                                                                     }
+                                                                                                                                      }
+                                                                                                             }
+                                                                                             }
+                                                                                 }
+                                                               }
+                                                   },
+                  "/api/v1/users":  {
+                                        "get":  {
+                                                    "tags":  [
+                                                                 "admin"
+                                                             ],
+                                                    "summary":  "Get Users List",
+                                                    "description":  "Get list of users (admin only).",
+                                                    "operationId":  "get_users_list_api_v1_users_get",
+                                                    "security":  [
+                                                                     {
+                                                                         "HTTPBearer":  [
+
+                                                                                        ]
+                                                                     }
+                                                                 ],
+                                                    "parameters":  [
+                                                                       {
+                                                                           "name":  "limit",
+                                                                           "in":  "query",
+                                                                           "required":  false,
+                                                                           "schema":  {
+                                                                                          "type":  "integer",
+                                                                                          "maximum":  100,
+                                                                                          "minimum":  1,
+                                                                                          "default":  50,
+                                                                                          "title":  "Limit"
+                                                                                      }
+                                                                       },
+                                                                       {
+                                                                           "name":  "offset",
+                                                                           "in":  "query",
+                                                                           "required":  false,
+                                                                           "schema":  {
+                                                                                          "type":  "integer",
+                                                                                          "minimum":  0,
+                                                                                          "default":  0,
+                                                                                          "title":  "Offset"
+                                                                                      }
+                                                                       },
+                                                                       {
+                                                                           "name":  "status_filter",
+                                                                           "in":  "query",
+                                                                           "required":  false,
+                                                                           "schema":  {
+                                                                                          "anyOf":  [
+                                                                                                        {
+                                                                                                            "type":  "string"
+                                                                                                        },
+                                                                                                        {
+                                                                                                            "type":  "null"
+                                                                                                        }
+                                                                                                    ],
+                                                                                          "description":  "Filter by user status",
+                                                                                          "title":  "Status Filter"
+                                                                                      },
+                                                                           "description":  "Filter by user status"
+                                                                       }
+                                                                   ],
+                                                    "responses":  {
+                                                                      "200":  {
+                                                                                  "description":  "Successful Response",
+                                                                                  "content":  {
+                                                                                                  "application/json":  {
+                                                                                                                           "schema":  {
+                                                                                                                                          "$ref":  "#/components/schemas/UserListResponse"
+                                                                                                                                      }
+                                                                                                                       }
+                                                                                              }
+                                                                              },
+                                                                      "422":  {
+                                                                                  "description":  "Validation Error",
+                                                                                  "content":  {
+                                                                                                  "application/json":  {
+                                                                                                                           "schema":  {
+                                                                                                                                          "$ref":  "#/components/schemas/HTTPValidationError"
+                                                                                                                                      }
+                                                                                                                       }
+                                                                                              }
+                                                                              }
+                                                                  }
+                                                }
+                                    },
+                  "/api/v1/users/{user_id}":  {
+                                                  "get":  {
+                                                              "tags":  [
+                                                                           "admin"
+                                                                       ],
+                                                              "summary":  "Get User Details",
+                                                              "description":  "Get detailed user information (admin only).",
+                                                              "operationId":  "get_user_details_api_v1_users__user_id__get",
+                                                              "security":  [
+                                                                               {
+                                                                                   "HTTPBearer":  [
+
+                                                                                                  ]
+                                                                               }
+                                                                           ],
+                                                              "parameters":  [
+                                                                                 {
+                                                                                     "name":  "user_id",
+                                                                                     "in":  "path",
+                                                                                     "required":  true,
+                                                                                     "schema":  {
+                                                                                                    "type":  "string",
+                                                                                                    "title":  "User Id"
+                                                                                                }
+                                                                                 }
+                                                                             ],
+                                                              "responses":  {
+                                                                                "200":  {
+                                                                                            "description":  "Successful Response",
+                                                                                            "content":  {
+                                                                                                            "application/json":  {
+                                                                                                                                     "schema":  {
+
+                                                                                                                                                }
+                                                                                                                                 }
+                                                                                                        }
+                                                                                        },
+                                                                                "422":  {
+                                                                                            "description":  "Validation Error",
+                                                                                            "content":  {
+                                                                                                            "application/json":  {
+                                                                                                                                     "schema":  {
+                                                                                                                                                    "$ref":  "#/components/schemas/HTTPValidationError"
+                                                                                                                                                }
+                                                                                                                                 }
+                                                                                                        }
+                                                                                        }
+                                                                            }
+                                                          }
+                                              },
+                  "/api/v1/transactions/{tx_id}/approve":  {
+                                                               "post":  {
+                                                                            "tags":  [
+                                                                                         "admin"
+                                                                                     ],
+                                                                            "summary":  "Approve Transaction",
+                                                                            "description":  "Approve a withdrawal transaction (admin only).\n\nEnqueues the withdrawal processing task.",
+                                                                            "operationId":  "approve_transaction_api_v1_transactions__tx_id__approve_post",
+                                                                            "security":  [
+                                                                                             {
+                                                                                                 "HTTPBearer":  [
+
+                                                                                                                ]
+                                                                                             }
+                                                                                         ],
+                                                                            "parameters":  [
+                                                                                               {
+                                                                                                   "name":  "tx_id",
+                                                                                                   "in":  "path",
+                                                                                                   "required":  true,
+                                                                                                   "schema":  {
+                                                                                                                  "type":  "string",
+                                                                                                                  "title":  "Tx Id"
+                                                                                                              }
+                                                                                               }
+                                                                                           ],
+                                                                            "responses":  {
+                                                                                              "200":  {
+                                                                                                          "description":  "Successful Response",
+                                                                                                          "content":  {
+                                                                                                                          "application/json":  {
+                                                                                                                                                   "schema":  {
+                                                                                                                                                                  "$ref":  "#/components/schemas/TransactionApprovalResponse"
+                                                                                                                                                              }
+                                                                                                                                               }
+                                                                                                                      }
+                                                                                                      },
+                                                                                              "422":  {
+                                                                                                          "description":  "Validation Error",
+                                                                                                          "content":  {
+                                                                                                                          "application/json":  {
+                                                                                                                                                   "schema":  {
+                                                                                                                                                                  "$ref":  "#/components/schemas/HTTPValidationError"
+                                                                                                                                                              }
+                                                                                                                                               }
+                                                                                                                      }
+                                                                                                      }
+                                                                                          }
+                                                                        }
+                                                           },
+                  "/api/v1/audit-logs":  {
+                                             "get":  {
+                                                         "tags":  [
+                                                                      "admin"
+                                                                  ],
+                                                         "summary":  "Get Audit Logs Endpoint",
+                                                         "description":  "Get audit logs (admin only).",
+                                                         "operationId":  "get_audit_logs_endpoint_api_v1_audit_logs_get",
+                                                         "security":  [
+                                                                          {
+                                                                              "HTTPBearer":  [
+
+                                                                                             ]
+                                                                          }
+                                                                      ],
+                                                         "parameters":  [
+                                                                            {
+                                                                                "name":  "limit",
+                                                                                "in":  "query",
+                                                                                "required":  false,
+                                                                                "schema":  {
+                                                                                               "type":  "integer",
+                                                                                               "maximum":  100,
+                                                                                               "minimum":  1,
+                                                                                               "default":  50,
+                                                                                               "title":  "Limit"
+                                                                                           }
+                                                                            },
+                                                                            {
+                                                                                "name":  "offset",
+                                                                                "in":  "query",
+                                                                                "required":  false,
+                                                                                "schema":  {
+                                                                                               "type":  "integer",
+                                                                                               "minimum":  0,
+                                                                                               "default":  0,
+                                                                                               "title":  "Offset"
+                                                                                           }
+                                                                            },
+                                                                            {
+                                                                                "name":  "action_filter",
+                                                                                "in":  "query",
+                                                                                "required":  false,
+                                                                                "schema":  {
+                                                                                               "anyOf":  [
+                                                                                                             {
+                                                                                                                 "type":  "string"
+                                                                                                             },
+                                                                                                             {
+                                                                                                                 "type":  "null"
+                                                                                                             }
+                                                                                                         ],
+                                                                                               "description":  "Filter by action type",
+                                                                                               "title":  "Action Filter"
+                                                                                           },
+                                                                                "description":  "Filter by action type"
+                                                                            }
+                                                                        ],
+                                                         "responses":  {
+                                                                           "200":  {
+                                                                                       "description":  "Successful Response",
+                                                                                       "content":  {
+                                                                                                       "application/json":  {
+                                                                                                                                "schema":  {
+                                                                                                                                               "$ref":  "#/components/schemas/AuditLogResponse"
+                                                                                                                                           }
+                                                                                                                            }
+                                                                                                   }
+                                                                                   },
+                                                                           "422":  {
+                                                                                       "description":  "Validation Error",
+                                                                                       "content":  {
+                                                                                                       "application/json":  {
+                                                                                                                                "schema":  {
+                                                                                                                                               "$ref":  "#/components/schemas/HTTPValidationError"
+                                                                                                                                           }
+                                                                                                                            }
+                                                                                                   }
+                                                                                   }
+                                                                       }
+                                                     }
+                                         },
+                  "/api/v1/stats":  {
+                                        "get":  {
+                                                    "tags":  [
+                                                                 "admin"
+                                                             ],
+                                                    "summary":  "Get Admin Stats",
+                                                    "description":  "Get admin dashboard statistics.",
+                                                    "operationId":  "get_admin_stats_api_v1_stats_get",
+                                                    "responses":  {
+                                                                      "200":  {
+                                                                                  "description":  "Successful Response",
+                                                                                  "content":  {
+                                                                                                  "application/json":  {
+                                                                                                                           "schema":  {
+
+                                                                                                                                      }
+                                                                                                                       }
+                                                                                              }
+                                                                              }
+                                                                  },
+                                                    "security":  [
+                                                                     {
+                                                                         "HTTPBearer":  [
+
+                                                                                        ]
+                                                                     }
+                                                                 ]
+                                                }
+                                    },
+                  "/api/v1/admin/contest/{contest_id}/settle":  {
+                                                                    "post":  {
+                                                                                 "tags":  [
+                                                                                              "admin-contest"
+                                                                                          ],
+                                                                                 "summary":  "Settle Contest Endpoint",
+                                                                                 "description":  "Settle a contest and distribute payouts (admin only).\n\nThis endpoint triggers the settlement process for a contest, which:\n1. Locks the contest to prevent concurrent settlements\n2. Calculates prize pool, commission, and payouts\n3. Credits winning balances to participants\n4. Creates transaction records\n5. Marks contest as settled\n6. Records audit log\n\nThe operation is atomic and idempotent - it can be called multiple times\nsafely without double-paying winners.",
+                                                                                 "operationId":  "settle_contest_endpoint_api_v1_admin_contest__contest_id__settle_post",
+                                                                                 "security":  [
+                                                                                                  {
+                                                                                                      "HTTPBearer":  [
+
+                                                                                                                     ]
+                                                                                                  }
+                                                                                              ],
+                                                                                 "parameters":  [
+                                                                                                    {
+                                                                                                        "name":  "contest_id",
+                                                                                                        "in":  "path",
+                                                                                                        "required":  true,
+                                                                                                        "schema":  {
+                                                                                                                       "type":  "string",
+                                                                                                                       "title":  "Contest Id"
+                                                                                                                   }
+                                                                                                    }
+                                                                                                ],
+                                                                                 "responses":  {
+                                                                                                   "200":  {
+                                                                                                               "description":  "Successful Response",
+                                                                                                               "content":  {
+                                                                                                                               "application/json":  {
+                                                                                                                                                        "schema":  {
+                                                                                                                                                                       "$ref":  "#/components/schemas/SettlementResponse"
+                                                                                                                                                                   }
+                                                                                                                                                    }
+                                                                                                                           }
+                                                                                                           },
+                                                                                                   "422":  {
+                                                                                                               "description":  "Validation Error",
+                                                                                                               "content":  {
+                                                                                                                               "application/json":  {
+                                                                                                                                                        "schema":  {
+                                                                                                                                                                       "$ref":  "#/components/schemas/HTTPValidationError"
+                                                                                                                                                                   }
+                                                                                                                                                    }
+                                                                                                                           }
+                                                                                                           }
+                                                                                               }
+                                                                             }
+                                                                },
+                  "/api/v1/debug/token-info":  {
+                                                   "get":  {
+                                                               "tags":  [
+                                                                            "debug"
+                                                                        ],
+                                                               "summary":  "Get Token Info",
+                                                               "description":  "Debug endpoint to introspect token claims and user info.\nOnly available when ENABLE_DEBUG_ENDPOINT=true and in development environment",
+                                                               "operationId":  "get_token_info_api_v1_debug_token_info_get",
+                                                               "responses":  {
+                                                                                 "200":  {
+                                                                                             "description":  "Successful Response",
+                                                                                             "content":  {
+                                                                                                             "application/json":  {
+                                                                                                                                      "schema":  {
+
+                                                                                                                                                 }
+                                                                                                                                  }
+                                                                                                         }
+                                                                                         }
+                                                                             },
+                                                               "security":  [
+                                                                                {
+                                                                                    "HTTPBearer":  [
+
+                                                                                                   ]
+                                                                                }
+                                                                            ]
+                                                           }
+                                               }
+              },
+    "components":  {
+                       "schemas":  {
+                                       "AuditLogResponse":  {
+                                                                "properties":  {
+                                                                                   "logs":  {
+                                                                                                "items":  {
+                                                                                                              "type":  "object"
+                                                                                                          },
+                                                                                                "type":  "array",
+                                                                                                "title":  "Logs"
+                                                                                            },
+                                                                                   "total":  {
+                                                                                                 "type":  "integer",
+                                                                                                 "title":  "Total"
+                                                                                             },
+                                                                                   "limit":  {
+                                                                                                 "type":  "integer",
+                                                                                                 "title":  "Limit"
+                                                                                             },
+                                                                                   "offset":  {
+                                                                                                  "type":  "integer",
+                                                                                                  "title":  "Offset"
+                                                                                              }
+                                                                               },
+                                                                "type":  "object",
+                                                                "required":  [
+                                                                                 "logs",
+                                                                                 "total",
+                                                                                 "limit",
+                                                                                 "offset"
+                                                                             ],
+                                                                "title":  "AuditLogResponse",
+                                                                "description":  "Audit log response model"
+                                                            },
+                                       "ContestCreate":  {
+                                                             "properties":  {
+                                                                                "match_id":  {
+                                                                                                 "type":  "string",
+                                                                                                 "title":  "Match Id",
+                                                                                                 "description":  "Cricket match ID"
+                                                                                             },
+                                                                                "title":  {
+                                                                                              "type":  "string",
+                                                                                              "title":  "Title",
+                                                                                              "description":  "Contest title"
+                                                                                          },
+                                                                                "entry_fee":  {
+                                                                                                  "type":  "string",
+                                                                                                  "title":  "Entry Fee",
+                                                                                                  "description":  "Entry fee in USDT"
+                                                                                              },
+                                                                                "max_participants":  {
+                                                                                                         "type":  "integer",
+                                                                                                         "title":  "Max Participants",
+                                                                                                         "description":  "Maximum number of participants"
+                                                                                                     },
+                                                                                "prize_structure":  {
+                                                                                                        "items":  {
+                                                                                                                      "type":  "object"
+                                                                                                                  },
+                                                                                                        "type":  "array",
+                                                                                                        "title":  "Prize Structure",
+                                                                                                        "description":  "Prize structure as list of position/percentage objects"
+                                                                                                    },
+                                                                                "start_time":  {
+                                                                                                   "anyOf":  [
+                                                                                                                 {
+                                                                                                                     "type":  "string"
+                                                                                                                 },
+                                                                                                                 {
+                                                                                                                     "type":  "null"
+                                                                                                                 }
+                                                                                                             ],
+                                                                                                   "title":  "Start Time",
+                                                                                                   "description":  "Contest start time (ISO format)"
+                                                                                               },
+                                                                                "end_time":  {
+                                                                                                 "anyOf":  [
+                                                                                                               {
+                                                                                                                   "type":  "string"
+                                                                                                               },
+                                                                                                               {
+                                                                                                                   "type":  "null"
+                                                                                                               }
+                                                                                                           ],
+                                                                                                 "title":  "End Time",
+                                                                                                 "description":  "Contest end time (ISO format)"
+                                                                                             }
+                                                                            },
+                                                             "type":  "object",
+                                                             "required":  [
+                                                                              "match_id",
+                                                                              "title",
+                                                                              "entry_fee",
+                                                                              "max_participants",
+                                                                              "prize_structure"
+                                                                          ],
+                                                             "title":  "ContestCreate",
+                                                             "description":  "Contest creation request model"
+                                                         },
+                                       "ContestJoinResponse":  {
+                                                                   "properties":  {
+                                                                                      "success":  {
+                                                                                                      "type":  "boolean",
+                                                                                                      "title":  "Success"
+                                                                                                  },
+                                                                                      "message":  {
+                                                                                                      "type":  "string",
+                                                                                                      "title":  "Message"
+                                                                                                  },
+                                                                                      "entry_id":  {
+                                                                                                       "anyOf":  [
+                                                                                                                     {
+                                                                                                                         "type":  "string"
+                                                                                                                     },
+                                                                                                                     {
+                                                                                                                         "type":  "null"
+                                                                                                                     }
+                                                                                                                 ],
+                                                                                                       "title":  "Entry Id"
+                                                                                                   }
+                                                                                  },
+                                                                   "type":  "object",
+                                                                   "required":  [
+                                                                                    "success",
+                                                                                    "message"
+                                                                                ],
+                                                                   "title":  "ContestJoinResponse",
+                                                                   "description":  "Contest join response model"
+                                                               },
+                                       "ContestResponse":  {
+                                                               "properties":  {
+                                                                                  "id":  {
+                                                                                             "type":  "string",
+                                                                                             "title":  "Id"
+                                                                                         },
+                                                                                  "match_id":  {
+                                                                                                   "type":  "string",
+                                                                                                   "title":  "Match Id"
+                                                                                               },
+                                                                                  "title":  {
+                                                                                                "type":  "string",
+                                                                                                "title":  "Title"
+                                                                                            },
+                                                                                  "entry_fee":  {
+                                                                                                    "type":  "string",
+                                                                                                    "title":  "Entry Fee"
+                                                                                                },
+                                                                                  "max_participants":  {
+                                                                                                           "type":  "integer",
+                                                                                                           "title":  "Max Participants"
+                                                                                                       },
+                                                                                  "current_participants":  {
+                                                                                                               "type":  "integer",
+                                                                                                               "title":  "Current Participants"
+                                                                                                           },
+                                                                                  "prize_structure":  {
+                                                                                                          "items":  {
+                                                                                                                        "type":  "object"
+                                                                                                                    },
+                                                                                                          "type":  "array",
+                                                                                                          "title":  "Prize Structure"
+                                                                                                      },
+                                                                                  "status":  {
+                                                                                                 "type":  "string",
+                                                                                                 "title":  "Status"
+                                                                                             },
+                                                                                  "created_at":  {
+                                                                                                     "type":  "string",
+                                                                                                     "title":  "Created At"
+                                                                                                 }
+                                                                              },
+                                                               "type":  "object",
+                                                               "required":  [
+                                                                                "id",
+                                                                                "match_id",
+                                                                                "title",
+                                                                                "entry_fee",
+                                                                                "max_participants",
+                                                                                "current_participants",
+                                                                                "prize_structure",
+                                                                                "status",
+                                                                                "created_at"
+                                                                            ],
+                                                               "title":  "ContestResponse",
+                                                               "description":  "Contest response model"
+                                                           },
+                                       "ContestSettleResponse":  {
+                                                                     "properties":  {
+                                                                                        "success":  {
+                                                                                                        "type":  "boolean",
+                                                                                                        "title":  "Success"
+                                                                                                    },
+                                                                                        "message":  {
+                                                                                                        "type":  "string",
+                                                                                                        "title":  "Message"
+                                                                                                    },
+                                                                                        "total_payouts":  {
+                                                                                                              "type":  "integer",
+                                                                                                              "title":  "Total Payouts"
+                                                                                                          },
+                                                                                        "total_commission":  {
+                                                                                                                 "type":  "string",
+                                                                                                                 "title":  "Total Commission"
+                                                                                                             }
+                                                                                    },
+                                                                     "type":  "object",
+                                                                     "required":  [
+                                                                                      "success",
+                                                                                      "message",
+                                                                                      "total_payouts",
+                                                                                      "total_commission"
+                                                                                  ],
+                                                                     "title":  "ContestSettleResponse",
+                                                                     "description":  "Contest settlement response model"
+                                                                 },
+                                       "HTTPValidationError":  {
+                                                                   "properties":  {
+                                                                                      "detail":  {
+                                                                                                     "items":  {
+                                                                                                                   "$ref":  "#/components/schemas/ValidationError"
+                                                                                                               },
+                                                                                                     "type":  "array",
+                                                                                                     "title":  "Detail"
+                                                                                                 }
+                                                                                  },
+                                                                   "type":  "object",
+                                                                   "title":  "HTTPValidationError"
+                                                               },
+                                       "RefreshTokenRequest":  {
+                                                                   "properties":  {
+                                                                                      "refresh_token":  {
+                                                                                                            "type":  "string",
+                                                                                                            "title":  "Refresh Token"
+                                                                                                        }
+                                                                                  },
+                                                                   "type":  "object",
+                                                                   "required":  [
+                                                                                    "refresh_token"
+                                                                                ],
+                                                                   "title":  "RefreshTokenRequest",
+                                                                   "description":  "Refresh token request model"
+                                                               },
+                                       "SettlementResponse":  {
+                                                                  "properties":  {
+                                                                                     "success":  {
+                                                                                                     "type":  "boolean",
+                                                                                                     "title":  "Success"
+                                                                                                 },
+                                                                                     "contest_id":  {
+                                                                                                        "type":  "string",
+                                                                                                        "title":  "Contest Id"
+                                                                                                    },
+                                                                                     "settlement_time":  {
+                                                                                                             "type":  "string",
+                                                                                                             "title":  "Settlement Time"
+                                                                                                         },
+                                                                                     "num_players":  {
+                                                                                                         "type":  "integer",
+                                                                                                         "title":  "Num Players"
+                                                                                                     },
+                                                                                     "total_prize_pool":  {
+                                                                                                              "type":  "string",
+                                                                                                              "title":  "Total Prize Pool"
+                                                                                                          },
+                                                                                     "commission_pct":  {
+                                                                                                            "type":  "number",
+                                                                                                            "title":  "Commission Pct"
+                                                                                                        },
+                                                                                     "commission_amount":  {
+                                                                                                               "type":  "string",
+                                                                                                               "title":  "Commission Amount"
+                                                                                                           },
+                                                                                     "distributable_pool":  {
+                                                                                                                "type":  "string",
+                                                                                                                "title":  "Distributable Pool"
+                                                                                                            },
+                                                                                     "total_payouts":  {
+                                                                                                           "type":  "string",
+                                                                                                           "title":  "Total Payouts"
+                                                                                                       },
+                                                                                     "payouts":  {
+                                                                                                     "items":  {
+
+                                                                                                               },
+                                                                                                     "type":  "array",
+                                                                                                     "title":  "Payouts"
+                                                                                                 },
+                                                                                     "prize_structure":  {
+                                                                                                             "items":  {
+
+                                                                                                                       },
+                                                                                                             "type":  "array",
+                                                                                                             "title":  "Prize Structure"
+                                                                                                         }
+                                                                                 },
+                                                                  "type":  "object",
+                                                                  "required":  [
+                                                                                   "success",
+                                                                                   "contest_id",
+                                                                                   "settlement_time",
+                                                                                   "num_players",
+                                                                                   "total_prize_pool",
+                                                                                   "commission_pct",
+                                                                                   "commission_amount",
+                                                                                   "distributable_pool",
+                                                                                   "total_payouts",
+                                                                                   "payouts",
+                                                                                   "prize_structure"
+                                                                               ],
+                                                                  "title":  "SettlementResponse",
+                                                                  "description":  "Settlement response model"
+                                                              },
+                                       "TokenResponse":  {
+                                                             "properties":  {
+                                                                                "access_token":  {
+                                                                                                     "type":  "string",
+                                                                                                     "title":  "Access Token"
+                                                                                                 },
+                                                                                "refresh_token":  {
+                                                                                                      "type":  "string",
+                                                                                                      "title":  "Refresh Token"
+                                                                                                  },
+                                                                                "token_type":  {
+                                                                                                   "type":  "string",
+                                                                                                   "title":  "Token Type",
+                                                                                                   "default":  "bearer"
+                                                                                               },
+                                                                                "expires_in":  {
+                                                                                                   "type":  "integer",
+                                                                                                   "title":  "Expires In"
+                                                                                               }
+                                                                            },
+                                                             "type":  "object",
+                                                             "required":  [
+                                                                              "access_token",
+                                                                              "refresh_token",
+                                                                              "expires_in"
+                                                                          ],
+                                                             "title":  "TokenResponse",
+                                                             "description":  "Token response model"
+                                                         },
+                                       "TransactionApprovalResponse":  {
+                                                                           "properties":  {
+                                                                                              "success":  {
+                                                                                                              "type":  "boolean",
+                                                                                                              "title":  "Success"
+                                                                                                          },
+                                                                                              "message":  {
+                                                                                                              "type":  "string",
+                                                                                                              "title":  "Message"
+                                                                                                          },
+                                                                                              "transaction_id":  {
+                                                                                                                     "type":  "string",
+                                                                                                                     "title":  "Transaction Id"
+                                                                                                                 }
+                                                                                          },
+                                                                           "type":  "object",
+                                                                           "required":  [
+                                                                                            "success",
+                                                                                            "message",
+                                                                                            "transaction_id"
+                                                                                        ],
+                                                                           "title":  "TransactionApprovalResponse",
+                                                                           "description":  "Transaction approval response model"
+                                                                       },
+                                       "UserListResponse":  {
+                                                                "properties":  {
+                                                                                   "users":  {
+                                                                                                 "items":  {
+                                                                                                               "type":  "object"
+                                                                                                           },
+                                                                                                 "type":  "array",
+                                                                                                 "title":  "Users"
+                                                                                             },
+                                                                                   "total":  {
+                                                                                                 "type":  "integer",
+                                                                                                 "title":  "Total"
+                                                                                             },
+                                                                                   "limit":  {
+                                                                                                 "type":  "integer",
+                                                                                                 "title":  "Limit"
+                                                                                             },
+                                                                                   "offset":  {
+                                                                                                  "type":  "integer",
+                                                                                                  "title":  "Offset"
+                                                                                              }
+                                                                               },
+                                                                "type":  "object",
+                                                                "required":  [
+                                                                                 "users",
+                                                                                 "total",
+                                                                                 "limit",
+                                                                                 "offset"
+                                                                             ],
+                                                                "title":  "UserListResponse",
+                                                                "description":  "User list response model"
+                                                            },
+                                       "UserLogin":  {
+                                                         "properties":  {
+                                                                            "username":  {
+                                                                                             "type":  "string",
+                                                                                             "title":  "Username"
+                                                                                         },
+                                                                            "password":  {
+                                                                                             "type":  "string",
+                                                                                             "title":  "Password"
+                                                                                         },
+                                                                            "totp_code":  {
+                                                                                              "anyOf":  [
+                                                                                                            {
+                                                                                                                "type":  "string"
+                                                                                                            },
+                                                                                                            {
+                                                                                                                "type":  "null"
+                                                                                                            }
+                                                                                                        ],
+                                                                                              "title":  "Totp Code"
+                                                                                          }
+                                                                        },
+                                                         "type":  "object",
+                                                         "required":  [
+                                                                          "username",
+                                                                          "password"
+                                                                      ],
+                                                         "title":  "UserLogin",
+                                                         "description":  "User login request model"
+                                                     },
+                                       "UserRegister":  {
+                                                            "properties":  {
+                                                                               "username":  {
+                                                                                                "type":  "string",
+                                                                                                "maxLength":  48,
+                                                                                                "minLength":  3,
+                                                                                                "title":  "Username"
+                                                                                            },
+                                                                               "telegram_id":  {
+                                                                                                   "anyOf":  [
+                                                                                                                 {
+                                                                                                                     "type":  "integer"
+                                                                                                                 },
+                                                                                                                 {
+                                                                                                                     "type":  "null"
+                                                                                                                 }
+                                                                                                             ],
+                                                                                                   "title":  "Telegram Id"
+                                                                                               },
+                                                                               "password":  {
+                                                                                                "anyOf":  [
+                                                                                                              {
+                                                                                                                  "type":  "string",
+                                                                                                                  "minLength":  8
+                                                                                                              },
+                                                                                                              {
+                                                                                                                  "type":  "null"
+                                                                                                              }
+                                                                                                          ],
+                                                                                                "title":  "Password"
+                                                                                            }
+                                                                           },
+                                                            "type":  "object",
+                                                            "required":  [
+                                                                             "username"
+                                                                         ],
+                                                            "title":  "UserRegister",
+                                                            "description":  "User registration request model"
+                                                        },
+                                       "ValidationError":  {
+                                                               "properties":  {
+                                                                                  "loc":  {
+                                                                                              "items":  {
+                                                                                                            "anyOf":  [
+                                                                                                                          {
+                                                                                                                              "type":  "string"
+                                                                                                                          },
+                                                                                                                          {
+                                                                                                                              "type":  "integer"
+                                                                                                                          }
+                                                                                                                      ]
+                                                                                                        },
+                                                                                              "type":  "array",
+                                                                                              "title":  "Location"
+                                                                                          },
+                                                                                  "msg":  {
+                                                                                              "type":  "string",
+                                                                                              "title":  "Message"
+                                                                                          },
+                                                                                  "type":  {
+                                                                                               "type":  "string",
+                                                                                               "title":  "Error Type"
+                                                                                           }
+                                                                              },
+                                                               "type":  "object",
+                                                               "required":  [
+                                                                                "loc",
+                                                                                "msg",
+                                                                                "type"
+                                                                            ],
+                                                               "title":  "ValidationError"
+                                                           },
+                                       "WalletBalance":  {
+                                                             "properties":  {
+                                                                                "deposit_balance":  {
+                                                                                                        "type":  "string",
+                                                                                                        "title":  "Deposit Balance"
+                                                                                                    },
+                                                                                "bonus_balance":  {
+                                                                                                      "type":  "string",
+                                                                                                      "title":  "Bonus Balance"
+                                                                                                  },
+                                                                                "winning_balance":  {
+                                                                                                        "type":  "string",
+                                                                                                        "title":  "Winning Balance"
+                                                                                                    },
+                                                                                "total_balance":  {
+                                                                                                      "type":  "string",
+                                                                                                      "title":  "Total Balance"
+                                                                                                  }
+                                                                            },
+                                                             "type":  "object",
+                                                             "required":  [
+                                                                              "deposit_balance",
+                                                                              "bonus_balance",
+                                                                              "winning_balance",
+                                                                              "total_balance"
+                                                                          ],
+                                                             "title":  "WalletBalance",
+                                                             "description":  "Wallet balance response model"
+                                                         },
+                                       "WebhookPayload":  {
+                                                              "properties":  {
+                                                                                 "tx_hash":  {
+                                                                                                 "type":  "string",
+                                                                                                 "title":  "Tx Hash"
+                                                                                             },
+                                                                                 "confirmations":  {
+                                                                                                       "type":  "integer",
+                                                                                                       "title":  "Confirmations"
+                                                                                                   },
+                                                                                 "amount":  {
+                                                                                                "anyOf":  [
+                                                                                                              {
+                                                                                                                  "type":  "string"
+                                                                                                              },
+                                                                                                              {
+                                                                                                                  "type":  "null"
+                                                                                                              }
+                                                                                                          ],
+                                                                                                "title":  "Amount"
+                                                                                            },
+                                                                                 "currency":  {
+                                                                                                  "anyOf":  [
+                                                                                                                {
+                                                                                                                    "type":  "string"
+                                                                                                                },
+                                                                                                                {
+                                                                                                                    "type":  "null"
+                                                                                                                }
+                                                                                                            ],
+                                                                                                  "title":  "Currency",
+                                                                                                  "default":  "USDT"
+                                                                                              },
+                                                                                 "status":  {
+                                                                                                "anyOf":  [
+                                                                                                              {
+                                                                                                                  "type":  "string"
+                                                                                                              },
+                                                                                                              {
+                                                                                                                  "type":  "null"
+                                                                                                              }
+                                                                                                          ],
+                                                                                                "title":  "Status",
+                                                                                                "default":  "confirmed"
+                                                                                            },
+                                                                                 "block_number":  {
+                                                                                                      "anyOf":  [
+                                                                                                                    {
+                                                                                                                        "type":  "integer"
+                                                                                                                    },
+                                                                                                                    {
+                                                                                                                        "type":  "null"
+                                                                                                                    }
+                                                                                                                ],
+                                                                                                      "title":  "Block Number"
+                                                                                                  },
+                                                                                 "user_id":  {
+                                                                                                 "anyOf":  [
+                                                                                                               {
+                                                                                                                   "type":  "string"
+                                                                                                               },
+                                                                                                               {
+                                                                                                                   "type":  "null"
+                                                                                                               }
+                                                                                                           ],
+                                                                                                 "title":  "User Id"
+                                                                                             },
+                                                                                 "metadata":  {
+                                                                                                  "anyOf":  [
+                                                                                                                {
+                                                                                                                    "type":  "object"
+                                                                                                                },
+                                                                                                                {
+                                                                                                                    "type":  "null"
+                                                                                                                }
+                                                                                                            ],
+                                                                                                  "title":  "Metadata"
+                                                                                              }
+                                                                             },
+                                                              "type":  "object",
+                                                              "required":  [
+                                                                               "tx_hash",
+                                                                               "confirmations"
+                                                                           ],
+                                                              "title":  "WebhookPayload",
+                                                              "description":  "Webhook payload model for blockchain confirmations"
+                                                          },
+                                       "WebhookResponse":  {
+                                                               "properties":  {
+                                                                                  "success":  {
+                                                                                                  "type":  "boolean",
+                                                                                                  "title":  "Success"
+                                                                                              },
+                                                                                  "message":  {
+                                                                                                  "type":  "string",
+                                                                                                  "title":  "Message"
+                                                                                              },
+                                                                                  "tx_hash":  {
+                                                                                                  "type":  "string",
+                                                                                                  "title":  "Tx Hash"
+                                                                                              }
+                                                                              },
+                                                               "type":  "object",
+                                                               "required":  [
+                                                                                "success",
+                                                                                "message",
+                                                                                "tx_hash"
+                                                                            ],
+                                                               "title":  "WebhookResponse",
+                                                               "description":  "Webhook response model"
+                                                           },
+                                       "WithdrawalRequest":  {
+                                                                 "properties":  {
+                                                                                    "amount":  {
+                                                                                                   "type":  "string",
+                                                                                                   "title":  "Amount",
+                                                                                                   "description":  "Amount to withdraw (USDT)"
+                                                                                               },
+                                                                                    "currency":  {
+                                                                                                     "type":  "string",
+                                                                                                     "title":  "Currency",
+                                                                                                     "description":  "Currency code",
+                                                                                                     "default":  "USDT"
+                                                                                                 },
+                                                                                    "withdrawal_address":  {
+                                                                                                               "type":  "string",
+                                                                                                               "title":  "Withdrawal Address",
+                                                                                                               "description":  "External wallet address"
+                                                                                                           },
+                                                                                    "notes":  {
+                                                                                                  "anyOf":  [
+                                                                                                                {
+                                                                                                                    "type":  "string"
+                                                                                                                },
+                                                                                                                {
+                                                                                                                    "type":  "null"
+                                                                                                                }
+                                                                                                            ],
+                                                                                                  "title":  "Notes",
+                                                                                                  "description":  "Optional notes"
+                                                                                              }
+                                                                                },
+                                                                 "type":  "object",
+                                                                 "required":  [
+                                                                                  "amount",
+                                                                                  "withdrawal_address"
+                                                                              ],
+                                                                 "title":  "WithdrawalRequest",
+                                                                 "description":  "Withdrawal request model"
+                                                             },
+                                       "WithdrawalResponse":  {
+                                                                  "properties":  {
+                                                                                     "transaction_id":  {
+                                                                                                            "type":  "string",
+                                                                                                            "title":  "Transaction Id"
+                                                                                                        },
+                                                                                     "status":  {
+                                                                                                    "type":  "string",
+                                                                                                    "title":  "Status"
+                                                                                                },
+                                                                                     "message":  {
+                                                                                                     "type":  "string",
+                                                                                                     "title":  "Message"
+                                                                                                 }
+                                                                                 },
+                                                                  "type":  "object",
+                                                                  "required":  [
+                                                                                   "transaction_id",
+                                                                                   "status",
+                                                                                   "message"
+                                                                               ],
+                                                                  "title":  "WithdrawalResponse",
+                                                                  "description":  "Withdrawal response model"
+                                                              }
+                                   },
+                       "securitySchemes":  {
+                                               "HTTPBearer":  {
+                                                                  "type":  "http",
+                                                                  "scheme":  "bearer"
+                                                              }
+                                           }
+                   }
+}

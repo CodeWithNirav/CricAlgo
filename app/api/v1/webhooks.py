@@ -121,7 +121,7 @@ async def mark_deposit_processing_enqueued(redis_client, tx_hash: str) -> bool:
         return False
 
 
-@router.post("/bep20", response_model=WebhookResponse)
+@router.post("/bep20")
 async def receive_bep20_webhook(
     payload: WebhookPayload,
     request: Request,
@@ -132,6 +132,7 @@ async def receive_bep20_webhook(
     
     This endpoint processes blockchain transaction confirmations
     and enqueues deposit processing when confirmation threshold is met.
+    Returns 202 immediately for async processing.
     """
     try:
         tx_hash = payload.tx_hash
@@ -149,93 +150,23 @@ async def receive_bep20_webhook(
         if not tx_hash:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="tx_hash is required")
         
-        # Get Redis client
-        redis_client = await get_redis()
+        # Return 202 immediately for async processing
+        from fastapi.responses import JSONResponse
         
-        # Look up or create transaction
-        from app.repos.transaction_repo import get_transaction_by_hash, create_transaction
-        from app.models.transaction import Transaction
+        # Enqueue async processing task
+        from app.tasks.webhook_processing import process_webhook_async
+        process_webhook_async.delay(tx_hash, payload.dict())
         
-        # Try to find existing transaction by hash
-        existing_tx = None
-        if payload.tx_metadata and "tx_hash" in payload.tx_metadata:
-            # Search by tx_hash in metadata
-            result = await session.execute(
-                select(Transaction).where(
-                    Transaction.tx_metadata["tx_hash"].astext == tx_hash
-                )
-            )
-            existing_tx = result.scalar_one_or_none()
+        logger.info(f"Webhook accepted and enqueued for async processing: {tx_hash}")
         
-        # If not found and we have user_id, create transaction
-        if not existing_tx and payload.user_id:
-            try:
-                user_id = UUID(payload.user_id)
-                amount = Decimal(payload.amount or "0")
-                
-                existing_tx = await create_transaction(
-                    session=session,
-                    user_id=user_id,
-                    tx_type="deposit",
-                    amount=amount,
-                    currency=payload.currency or settings.currency,
-                    tx_metadata={
-                        "tx_hash": tx_hash,
-                        "confirmations": payload.confirmations,
-                        "block_number": payload.block_number,
-                        "to_address": payload.to_address,
-                        "chain": payload.chain,
-                        "status": "pending"
-                    }
-                )
-                logger.info(f"Created new transaction {existing_tx.id} for tx_hash: {tx_hash}")
-            except Exception as e:
-                logger.error(f"Failed to create transaction for {tx_hash}: {e}")
-                # Continue without creating transaction
-        
-        # Update confirmations if transaction exists
-        if existing_tx:
-            # Update confirmations in metadata
-            if not existing_tx.tx_metadata:
-                existing_tx.tx_metadata = {}
-
-            existing_tx.tx_metadata.update({
-                "confirmations": payload.confirmations,
-                "block_number": payload.block_number,
-                "to_address": payload.to_address,
-                "chain": payload.chain
-            })
-            
-            await session.commit()
-            logger.info(f"Updated confirmations for transaction {existing_tx.id}: {payload.confirmations}")
-        
-        # Check if we should enqueue processing
-        enqueued = False
-        if payload.confirmations >= settings.confirmation_threshold:
-            if redis_client:
-                # Check if already enqueued
-                if await check_deposit_processing_idempotency(redis_client, tx_hash):
-                    logger.info(f"Deposit processing already enqueued for {tx_hash}")
-                    return WebhookResponse(ok=True, enqueued=False, message="Already enqueued")
-                
-                # Mark as enqueued
-                if await mark_deposit_processing_enqueued(redis_client, tx_hash):
-                    # Enqueue the task
-                    if existing_tx:
-                        process_deposit.delay(str(existing_tx.id))
-                        enqueued = True
-                        logger.info(f"Enqueued deposit processing for transaction {existing_tx.id}")
-                    else:
-                        logger.warning(f"No transaction found to process for {tx_hash}")
-                else:
-                    logger.error(f"Failed to mark deposit processing as enqueued for {tx_hash}")
-            else:
-                logger.warning("Redis not available, cannot ensure idempotency")
-        
-        return WebhookResponse(
-            ok=True,
-            enqueued=enqueued,
-            message="Webhook processed successfully"
+        return JSONResponse(
+            status_code=202,
+            content={
+                "ok": True,
+                "enqueued": True,
+                "message": "Webhook accepted for processing",
+                "tx_hash": tx_hash
+            }
         )
             
     except HTTPException:

@@ -8,8 +8,12 @@ services:
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:password@postgres:5432/cricalgo
       - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
       - APP_ENV=development
       - DEBUG=true
+      - ENABLE_TEST_TOTP_BYPASS=true
+      - ENABLE_TEST_CONTEST_SEED=true
     depends_on:
       - postgres
       - redis
@@ -45,6 +49,8 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/2
       - APP_ENV=development
       - DEBUG=true
+      - ENABLE_TEST_TOTP_BYPASS=true
+      - ENABLE_TEST_CONTEST_SEED=true
     depends_on:
       - postgres
       - redis

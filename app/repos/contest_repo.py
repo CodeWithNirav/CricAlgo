@@ -55,29 +55,6 @@ async def create_contest(
     else:
         match_uuid = match_id
     
-    # Check if match exists, if not create it
-    match_exists = await session.execute(
-        text("SELECT id FROM matches WHERE id = :match_id"),
-        {"match_id": match_uuid}
-    )
-    
-    if not match_exists.fetchone():
-        # Create a match for this contest
-        await session.execute(
-            text("""
-                INSERT INTO matches (id, external_id, title, start_time, status, created_at)
-                VALUES (:id, :external_id, :title, :start_time, :status, :created_at)
-            """),
-            {
-                "id": match_uuid,
-                "external_id": match_id,
-                "title": f"Match for {title}",
-                "start_time": datetime.now(timezone.utc),
-                "status": "scheduled",
-                "created_at": datetime.now(timezone.utc)
-            }
-        )
-    
     contest = Contest(
         match_id=match_uuid,
         code=contest_code,

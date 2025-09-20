@@ -37,6 +37,7 @@ from app.api.v1.contest import router as contest_router
 from app.api.v1.admin import router as admin_router
 from app.api.v1.admin_contest import router as admin_contest_router
 from app.api.v1.debug import router as debug_router
+from app.api.v1.test_contest import router as test_contest_router
 from app.middleware.rate_limit import RateLimitMiddleware
 
 # Prometheus metrics
@@ -121,6 +122,7 @@ app.include_router(contest_router, prefix="/api/v1", tags=["contest"])
 app.include_router(admin_router, prefix="/api/v1", tags=["admin"])
 app.include_router(admin_contest_router, prefix="/api/v1/admin", tags=["admin-contest"])
 app.include_router(debug_router, prefix="/api/v1/debug", tags=["debug"])
+app.include_router(test_contest_router, prefix="/api/v1/test", tags=["test"])
 
 if __name__ == "__main__":
     import uvicorn

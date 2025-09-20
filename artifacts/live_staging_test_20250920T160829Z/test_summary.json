@@ -1,0 +1,59 @@
+﻿{
+    "environment":  "staging",
+    "issues_found":  [
+                         "Deposit processing not working",
+                         "Admin authentication requires TOTP",
+                         "Contest creation requires admin access",
+                         "k6 p95 response time exceeds threshold"
+                     ],
+    "timestamp":  "2025-09-20T16:43:40Z",
+    "overall_status":  "PARTIAL_PASS",
+    "test_run_id":  "live_staging_test_20250920T160829Z",
+    "results":  {
+                    "telegram_test":  {
+                                          "user_registration":  " Success",
+                                          "status":  "PARTIAL",
+                                          "deposit_webhook":  " Sent",
+                                          "wallet_polling":  " Deposit not credited",
+                                          "contest_creation":  " Admin access required"
+                                      },
+                    "sanity_checks":  {
+                                          "health_endpoint":  " Accessible",
+                                          "status":  "PASS",
+                                          "metrics_endpoint":  " Accessible",
+                                          "telegram_webhook":  " Bot in polling mode"
+                                      },
+                    "artifacts":  {
+                                      "files":  [
+                                                    "health.json",
+                                                    "metrics_sample.txt",
+                                                    "telegram_webhook_info.json",
+                                                    "user_register.json",
+                                                    "deposit_webhook_resp.json",
+                                                    "wallet_polls.json",
+                                                    "k6_result.txt",
+                                                    "app_tail.log",
+                                                    "worker_tail.log",
+                                                    "prom_snapshot.txt"
+                                                ],
+                                      "directory":  "artifacts/live_staging_test_20250920T160829Z"
+                                  },
+                    "k6_load_test":  {
+                                         "avg_response_time":  "837.81ms",
+                                         "threshold_violations":  [
+                                                                      "http_req_duration p95 \u003e 500ms"
+                                                                  ],
+                                         "success_rate":  "100%",
+                                         "p95_response_time":  "3.49s",
+                                         "error_rate":  "0.00%",
+                                         "total_requests":  2386,
+                                         "status":  "PASS"
+                                     }
+                },
+    "recommendations":  [
+                            "Fix deposit processing pipeline",
+                            "Implement admin TOTP bypass for testing",
+                            "Add contest creation for regular users",
+                            "Optimize webhook response times"
+                        ]
+}

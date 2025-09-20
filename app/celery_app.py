@@ -10,7 +10,7 @@ celery = Celery(
     "cricalgo",
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
-    include=["app.tasks.tasks"]
+    include=["app.tasks.tasks", "app.tasks.webhook_processing"]
 )
 
 # Configure Celery

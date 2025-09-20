@@ -1,0 +1,16 @@
+﻿{
+    "id":  "ffc32265-a74e-4730-ae6f-64f62a683720",
+    "match_id":  "1d39c393-fce3-5d32-9011-193de410e43a",
+    "title":  "smoke_contest_ts20250920143538",
+    "entry_fee":  "5.00000000",
+    "max_participants":  10,
+    "current_participants":  0,
+    "prize_structure":  [
+                            {
+                                "pct":  100,
+                                "pos":  1
+                            }
+                        ],
+    "status":  "open",
+    "created_at":  "2025-09-20T09:09:50.529386+00:00"
+}

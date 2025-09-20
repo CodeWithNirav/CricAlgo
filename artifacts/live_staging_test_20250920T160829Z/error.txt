@@ -1,0 +1,15 @@
+Missing required environment variables for live staging test:
+
+Required variables:
+- STAGING_HOST: Base URL for staging API (e.g. https://staging.cricalgo.com)
+- TELEGRAM_BOT_TOKEN: Bot token for staging bot
+- TELEGRAM_TEST_USER_ID: Telegram numeric id for the test user
+- ADMIN_TOKEN: Admin JWT with permission to create/settle contests and approve withdrawals
+
+Optional variables:
+- GITHUB_TOKEN: For pushing branches/PRs
+- SENTRY_API_TOKEN: For collecting Sentry issues
+- WEBHOOK_SECRET: For HMAC signature verification
+- ADMIN_CRED: For creating admin sessions if token expires
+
+Please set these environment variables and re-run the test.

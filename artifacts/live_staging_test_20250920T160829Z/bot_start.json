@@ -1,0 +1,20 @@
+﻿{
+    "update_id":  12345,
+    "message":  {
+                    "from":  {
+                                 "username":  "testuser",
+                                 "id":  693173957,
+                                 "is_bot":  false,
+                                 "first_name":  "Test"
+                             },
+                    "message_id":  1,
+                    "chat":  {
+                                 "username":  "testuser",
+                                 "id":  693173957,
+                                 "type":  "private",
+                                 "first_name":  "Test"
+                             },
+                    "text":  "/start",
+                    "date":  1758386227
+                }
+}
