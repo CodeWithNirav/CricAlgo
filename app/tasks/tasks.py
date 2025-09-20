@@ -119,7 +119,17 @@ def process_deposit(self, tx_hash: str, amount: str, currency: str = "USDT"):
         
         # Run async function
         import asyncio
-        return asyncio.run(_process())
+        try:
+            # Try to get the current event loop
+            loop = asyncio.get_running_loop()
+            # If we're in an async context, create a new event loop in a thread
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, _process())
+                return future.result()
+        except RuntimeError:
+            # No event loop running, use asyncio.run()
+            return asyncio.run(_process())
         
     except Exception as exc:
         logger.error(f"Error processing deposit {tx_hash}: {exc}")
@@ -227,7 +237,7 @@ def process_withdrawal(self, transaction_id: str):
                 # Create audit log
                 await create_audit_log(
                     session=session,
-                    admin_id=transaction.user_id,  # System user
+                    admin_id=None,  # System action
                     action="process_withdrawal",
                     resource_type="transaction",
                     resource_id=tx_uuid,
@@ -244,7 +254,17 @@ def process_withdrawal(self, transaction_id: str):
         
         # Run async function
         import asyncio
-        return asyncio.run(_process())
+        try:
+            # Try to get the current event loop
+            loop = asyncio.get_running_loop()
+            # If we're in an async context, create a new event loop in a thread
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, _process())
+                return future.result()
+        except RuntimeError:
+            # No event loop running, use asyncio.run()
+            return asyncio.run(_process())
         
     except Exception as exc:
         logger.error(f"Error processing withdrawal {transaction_id}: {exc}")
