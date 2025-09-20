@@ -1,0 +1,15 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cricalgo-monitor
+  namespace: cricalgo-staging
+  labels:
+    app: cricalgo-app
+spec:
+  selector:
+    matchLabels:
+      app: cricalgo-app
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 30s

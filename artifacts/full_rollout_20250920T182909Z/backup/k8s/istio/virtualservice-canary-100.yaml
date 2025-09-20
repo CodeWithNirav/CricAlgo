@@ -1,0 +1,19 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: app-virtualservice-canary-100
+  namespace: cricalgo-staging
+spec:
+  hosts:
+  - "api.cricalgo-staging.example.com"
+  http:
+  - route:
+    - destination:
+        host: app.cricalgo-staging.svc.cluster.local
+        subset: canary
+      weight: 100
+    retries:
+      attempts: 2
+      perTryTimeout: 2s
+      retryOn: gateway-error,connect-failure,refused-stream
+    timeout: 30s
