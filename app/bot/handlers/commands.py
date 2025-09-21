@@ -222,9 +222,17 @@ async def help_command(message: Message):
 async def balance_callback(callback_query):
     """Handle balance callback"""
     await callback_query.answer()
-    # Create a fake message object for the balance command
-    fake_message = callback_query.message
-    fake_message.from_user = callback_query.from_user
+    # Create a new message object to avoid frozen instance error
+    from aiogram.types import Message
+    fake_message = Message(
+        message_id=callback_query.message.message_id,
+        from_user=callback_query.from_user,
+        chat=callback_query.message.chat,
+        date=callback_query.message.date,
+        content_type=callback_query.message.content_type,
+        text="",
+        reply_markup=callback_query.message.reply_markup
+    )
     await balance_command(fake_message)
 
 
@@ -249,9 +257,17 @@ async def main_menu_callback(callback_query):
 async def deposit_callback(callback_query):
     """Handle deposit callback"""
     await callback_query.answer()
-    # Create a fake message object for the deposit command
-    fake_message = callback_query.message
-    fake_message.from_user = callback_query.from_user
+    # Create a new message object to avoid frozen instance error
+    from aiogram.types import Message
+    fake_message = Message(
+        message_id=callback_query.message.message_id,
+        from_user=callback_query.from_user,
+        chat=callback_query.message.chat,
+        date=callback_query.message.date,
+        content_type=callback_query.message.content_type,
+        text="",
+        reply_markup=callback_query.message.reply_markup
+    )
     await deposit_command(fake_message, None)
 
 
@@ -259,7 +275,15 @@ async def deposit_callback(callback_query):
 async def contests_callback(callback_query):
     """Handle contests callback"""
     await callback_query.answer()
-    # Create a fake message object for the contests command
-    fake_message = callback_query.message
-    fake_message.from_user = callback_query.from_user
+    # Create a new message object to avoid frozen instance error
+    from aiogram.types import Message
+    fake_message = Message(
+        message_id=callback_query.message.message_id,
+        from_user=callback_query.from_user,
+        chat=callback_query.message.chat,
+        date=callback_query.message.date,
+        content_type=callback_query.message.content_type,
+        text="",
+        reply_markup=callback_query.message.reply_markup
+    )
     await contests_command(fake_message)

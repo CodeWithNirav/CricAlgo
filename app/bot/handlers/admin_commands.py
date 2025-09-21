@@ -2,6 +2,7 @@
 Admin command handlers for Telegram bot
 """
 
+import os
 import logging
 from typing import Optional
 from decimal import Decimal
@@ -10,6 +11,24 @@ from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+
+# Check if admin commands are disabled via environment variable
+if os.environ.get("DISABLE_TELEGRAM_ADMIN_CMDS","false").lower() in ("1","true","yes"):
+    # admin commands disabled in production, exit early
+    def _disabled_stub(*args, **kwargs):
+        return None
+    # override handlers with stub to avoid accidental admin actions
+    create_contest_command = _disabled_stub
+    process_contest_title = _disabled_stub
+    process_contest_entry_fee = _disabled_stub
+    process_contest_max_players = _disabled_stub
+    process_contest_prize_structure = _disabled_stub
+    settle_contest_command = _disabled_stub
+    process_settlement_contest_id = _disabled_stub
+    approve_withdraw_command = _disabled_stub
+    process_withdrawal_user_id = _disabled_stub
+    process_withdrawal_amount = _disabled_stub
+    admin_help_command = _disabled_stub
 
 from app.core.config import settings
 from app.db.session import get_async_session
