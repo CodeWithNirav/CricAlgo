@@ -11,16 +11,43 @@ import csv, io
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin_finance"])
 
-# dependency to ensure admin and token - reuse existing get_current_admin
-from app.api.auth import get_current_admin
+# Simple admin authentication for finance endpoints
+from fastapi import HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from jose import JWTError, jwt
+from app.core.config import settings
 
-@router.get("/deposits", dependencies=[Depends(get_current_admin)])
+security = HTTPBearer()
+
+async def get_current_admin_simple(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Simple admin authentication for finance endpoints."""
+    try:
+        payload = jwt.decode(credentials.credentials, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+        user_type = payload.get("type")
+        if user_type != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin access required"
+            )
+        return payload
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials"
+        )
+
+@router.get("/deposits", dependencies=[Depends(get_current_admin_simple)])
 async def list_deposits(status: str = "pending", db=Depends(get_db)):
-    q = await db.execute(select(Transaction).where(Transaction.status==status).order_by(Transaction.created_at.desc()).limit(200))
+    if status == "pending":
+        # Pending deposits are those without processed_at timestamp
+        q = await db.execute(select(Transaction).where(Transaction.tx_type == "deposit", Transaction.processed_at.is_(None)).order_by(Transaction.created_at.desc()).limit(200))
+    else:
+        # For other statuses, filter by processed_at
+        q = await db.execute(select(Transaction).where(Transaction.tx_type == "deposit", Transaction.processed_at.isnot(None)).order_by(Transaction.created_at.desc()).limit(200))
     rows = q.scalars().all()
     return [r.to_dict() for r in rows]
 
-@router.post("/deposits/{tx_id}/approve", dependencies=[Depends(get_current_admin)])
+@router.post("/deposits/{tx_id}/approve", dependencies=[Depends(get_current_admin_simple)])
 async def approve_deposit(tx_id: str, payload: dict = None, db=Depends(get_db)):
     # simple approve: mark processed and credit wallet (use existing wallet repo)
     from app.repos.transaction_repo import mark_transaction_processed, get_transaction_by_id
@@ -36,7 +63,7 @@ async def approve_deposit(tx_id: str, payload: dict = None, db=Depends(get_db)):
     await db.commit()
     return {"ok": True}
 
-@router.post("/deposits/{tx_id}/reject", dependencies=[Depends(get_current_admin)])
+@router.post("/deposits/{tx_id}/reject", dependencies=[Depends(get_current_admin_simple)])
 async def reject_deposit(tx_id: str, payload: dict, db=Depends(get_db)):
     from app.repos.transaction_repo import mark_transaction_rejected, get_transaction_by_id
     tx = await get_transaction_by_id(db, tx_id)
@@ -46,13 +73,13 @@ async def reject_deposit(tx_id: str, payload: dict, db=Depends(get_db)):
     await db.commit()
     return {"ok": True}
 
-@router.get("/withdrawals", dependencies=[Depends(get_current_admin)])
+@router.get("/withdrawals", dependencies=[Depends(get_current_admin_simple)])
 async def list_withdrawals(status: str = "pending", db=Depends(get_db)):
     q = await db.execute(select(Withdrawal).where(Withdrawal.status==status).order_by(Withdrawal.created_at.desc()).limit(200))
     rows = q.scalars().all()
     return [r.to_dict() for r in rows]
 
-@router.post("/withdrawals/{w_id}/approve", dependencies=[Depends(get_current_admin)])
+@router.post("/withdrawals/{w_id}/approve", dependencies=[Depends(get_current_admin_simple)])
 async def approve_withdrawal(w_id: str, db=Depends(get_db)):
     from app.repos.withdrawal_repo import mark_withdrawal_approved, get_withdrawal_by_id
     w = await get_withdrawal_by_id(db, w_id)
@@ -62,7 +89,7 @@ async def approve_withdrawal(w_id: str, db=Depends(get_db)):
     await db.commit()
     return {"ok": True}
 
-@router.post("/withdrawals/{w_id}/reject", dependencies=[Depends(get_current_admin)])
+@router.post("/withdrawals/{w_id}/reject", dependencies=[Depends(get_current_admin_simple)])
 async def reject_withdrawal(w_id: str, payload: dict, db=Depends(get_db)):
     from app.repos.withdrawal_repo import mark_withdrawal_rejected, get_withdrawal_by_id
     w = await get_withdrawal_by_id(db, w_id)
@@ -72,13 +99,13 @@ async def reject_withdrawal(w_id: str, payload: dict, db=Depends(get_db)):
     await db.commit()
     return {"ok": True}
 
-@router.get("/audit", dependencies=[Depends(get_current_admin)])
+@router.get("/audit", dependencies=[Depends(get_current_admin_simple)])
 async def get_audit(limit:int=200, db=Depends(get_db)):
     q = await db.execute(select(AuditLog).order_by(AuditLog.created_at.desc()).limit(limit))
     rows = q.scalars().all()
     return [r.to_dict() for r in rows]
 
-@router.get("/audit/export", dependencies=[Depends(get_current_admin)])
+@router.get("/audit/export", dependencies=[Depends(get_current_admin_simple)])
 async def export_audit_csv(db=Depends(get_db)):
     q = await db.execute(select(AuditLog).order_by(AuditLog.created_at.desc()).limit(10000))
     rows = q.scalars().all()

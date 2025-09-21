@@ -9,15 +9,81 @@ from fastapi import APIRouter, HTTPException, status, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import get_current_admin
+from app.core.auth import get_current_admin, verify_password, create_access_token
 from app.db.session import get_db
 from app.repos.user_repo import get_users, get_user_by_id
 from app.repos.transaction_repo import get_transaction_by_id, update_transaction_metadata
 from app.repos.audit_log_repo import create_audit_log, get_audit_logs
 from app.tasks.tasks import process_withdrawal
 from app.models.user import User
+from app.repos.admin_repo import get_admin_by_username
+from datetime import timedelta
 
 router = APIRouter()
+
+
+class AdminLoginRequest(BaseModel):
+    """Admin login request model"""
+    username: str
+    password: str
+
+
+class AdminLoginResponse(BaseModel):
+    """Admin login response model"""
+    access_token: str
+    token_type: str = "bearer"
+
+
+@router.post("/admin/login", response_model=AdminLoginResponse)
+async def admin_login(
+    login_data: AdminLoginRequest,
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Admin login endpoint.
+    """
+    try:
+        # Get admin by username
+        admin = await get_admin_by_username(session, login_data.username)
+        if not admin:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid credentials"
+            )
+        
+        # Verify password
+        if not verify_password(login_data.password, admin.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid credentials"
+            )
+        
+        # Create admin access token
+        access_token_expires = timedelta(hours=24)
+        from jose import jwt
+        from app.core.config import settings
+        from datetime import datetime
+        
+        to_encode = {
+            "sub": str(admin.id), 
+            "username": admin.username, 
+            "type": "admin",
+            "exp": datetime.utcnow() + access_token_expires
+        }
+        access_token = jwt.encode(to_encode, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+        
+        return AdminLoginResponse(
+            access_token=access_token,
+            token_type="bearer"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Login failed: {str(e)}"
+        )
 
 
 class UserListResponse(BaseModel):

@@ -9,7 +9,7 @@ from sqlalchemy import select
 from app.db.session import async_session
 from app.models.admin import Admin
 import asyncio
-from passlib.hash import bcrypt
+from app.core.auth import get_password_hash
 
 ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME","admin@staging.local")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD","ChangeMeNow!")
@@ -22,8 +22,8 @@ async def run():
         if admin:
             print("Admin exists:", ADMIN_USERNAME)
             return
-        hashed = bcrypt.hash(ADMIN_PASSWORD)
-        a = Admin(username=ADMIN_USERNAME, password_hash=hashed, is_super=True, totp_secret=None)
+        hashed = get_password_hash(ADMIN_PASSWORD)
+        a = Admin(username=ADMIN_USERNAME, password_hash=hashed, totp_secret=None)
         session.add(a)
         await session.commit()
         print("Created admin:", ADMIN_USERNAME)

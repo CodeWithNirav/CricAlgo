@@ -3,6 +3,9 @@ import Login from "./pages/Login";
 import Deposits from "./pages/finance/Deposits";
 import Withdrawals from "./pages/finance/Withdrawals";
 import Audit from "./pages/finance/Audit";
+import Matches from "./pages/matches/Matches";
+import MatchDetail from "./pages/matches/MatchDetail";
+import ContestDetail from "./pages/matches/ContestDetail";
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -14,7 +17,11 @@ export default function App() {
       setIsLoggedIn(true);
       // Check hash for page routing
       const hash = window.location.hash.substring(1);
-      if (hash && ["deposits", "withdrawals", "audit"].includes(hash)) {
+      if (hash && ["deposits", "withdrawals", "audit", "matches"].includes(hash)) {
+        setCurrentPage(hash);
+      } else if (hash && hash.startsWith("match/")) {
+        setCurrentPage(hash);
+      } else if (hash && hash.startsWith("contest/")) {
         setCurrentPage(hash);
       } else {
         setCurrentPage("deposits");
@@ -41,7 +48,17 @@ export default function App() {
         return <Withdrawals />;
       case "audit":
         return <Audit />;
+      case "matches":
+        return <Matches />;
       default:
+        if (currentPage.startsWith("match/")) {
+          const matchId = currentPage.split("/")[1];
+          return <MatchDetail matchId={matchId} />;
+        }
+        if (currentPage.startsWith("contest/")) {
+          const contestId = currentPage.split("/")[1];
+          return <ContestDetail contestId={contestId} />;
+        }
         return <Deposits />;
     }
   };
@@ -88,6 +105,17 @@ export default function App() {
                   onClick={() => setCurrentPage("audit")}
                 >
                   Audit
+                </a>
+                <a
+                  href="#matches"
+                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                    currentPage === "matches"
+                      ? "border-blue-500 text-gray-900"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                  onClick={() => setCurrentPage("matches")}
+                >
+                  Matches
                 </a>
               </div>
             </div>

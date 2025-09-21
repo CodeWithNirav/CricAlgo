@@ -31,3 +31,22 @@ class Contest(Base):
 
     def __repr__(self):
         return f"<Contest(id={self.id}, code={self.code}, title={self.title}, entry_fee={self.entry_fee})>"
+
+    def to_dict(self):
+        """Convert contest to dictionary for API responses"""
+        return {
+            "id": str(self.id),
+            "match_id": str(self.match_id),
+            "code": self.code,
+            "title": self.title,
+            "entry_fee": str(self.entry_fee),
+            "currency": self.currency,
+            "max_players": self.max_players,
+            "prize_structure": self.prize_structure,
+            "commission_pct": float(self.commission_pct) if self.commission_pct else 0,
+            "join_cutoff": self.join_cutoff.isoformat() if self.join_cutoff else None,
+            "status": self.status.value if self.status else None,
+            "settled_at": self.settled_at.isoformat() if self.settled_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }
