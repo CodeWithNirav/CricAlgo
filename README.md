@@ -53,6 +53,26 @@ This repository includes comprehensive performance optimizations:
 - Kubernetes HPA configuration
 - Prometheus monitoring and alerting
 
+## Admin UI (server-served React + Tailwind)
+
+- Admin frontend lives in `web/admin`. To develop:
+```
+cd web/admin
+npm install
+npm run dev
+```
+- To build static assets (served by FastAPI from `app/static/admin`):
+```
+cd web/admin
+npm install
+npm run build
+```
+- Seed a static super-admin (for staging/laptop server):
+```
+ADMIN_USERNAME=${ADMIN_USERNAME} ADMIN_PASSWORD=${ADMIN_PASSWORD} python app/scripts/seed_admin.py
+```
+- To disable Telegram admin commands in production, set `DISABLE_TELEGRAM_ADMIN_CMDS=true` in the environment.
+
 ## Documentation
 
 - [Performance Rollout Summary](PERFORMANCE_ROLLOUT_SUMMARY.md)

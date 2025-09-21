@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cricalgo-config
+  namespace: cricalgo-staging
+data:
+  APP_ENV: "staging"
+  APP_NAME: "CricAlgo"
+  DEBUG: "false"
+  DB_POOL_SIZE: "10"
+  DB_MAX_OVERFLOW: "20"
+  CELERY_BROKER_URL: "redis://redis-service:6379/1"
+  CELERY_RESULT_BACKEND: "redis://redis-service:6379/2"
+  JWT_ALGORITHM: "HS256"
+  JWT_ACCESS_TOKEN_EXPIRE_MINUTES: "15"
+  JWT_REFRESH_TOKEN_EXPIRE_DAYS: "7"
+  RATE_LIMIT_REQUESTS: "30"
+  RATE_LIMIT_WINDOW_SECONDS: "60"
+  PLATFORM_COMMISSION_PCT: "5.0"
+  CONFIRMATION_THRESHOLD: "3"
+  CURRENCY: "USDT"
+  API_V1_PREFIX: "/api/v1"

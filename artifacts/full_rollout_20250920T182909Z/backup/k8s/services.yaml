@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-service
+  namespace: cricalgo-staging
+  labels:
+    app: cricalgo-app
+spec:
+  selector:
+    app: cricalgo-app
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: worker-service
+  namespace: cricalgo-staging
+  labels:
+    app: cricalgo-worker
+spec:
+  selector:
+    app: cricalgo-worker
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+  namespace: cricalgo-staging
+  labels:
+    app: redis
+spec:
+  selector:
+    app: redis
+  ports:
+  - name: redis
+    port: 6379
+    targetPort: 6379
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: cricalgo-staging
+  labels:
+    app: postgres
+spec:
+  selector:
+    app: postgres
+  ports:
+  - name: postgres
+    port: 5432
+    targetPort: 5432
+  type: ClusterIP

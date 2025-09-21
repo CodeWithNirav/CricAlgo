@@ -146,3 +146,6 @@ services:
 volumes:
   postgres_data:
   redis_data:
+
+# NOTE: Admin UI static files are built to app/static/admin by 'npm run build' in web/admin
+# Ensure 'app' service mounts app/static/admin to serve admin

@@ -243,6 +243,20 @@ async def credit_winning_atomic(
         return False, f"Database error: {str(e)}", None
 
 
+async def get_wallet_by_user(session: AsyncSession, user_id: UUID):
+    """
+    Alias for get_wallet_for_user for bot compatibility.
+    
+    Args:
+        session: Database session
+        user_id: User UUID
+    
+    Returns:
+        Wallet instance or None if not found
+    """
+    return await get_wallet_for_user(session, user_id)
+
+
 async def debit_for_contest_entry(
     session: AsyncSession,
     user_id: UUID,
@@ -428,3 +442,17 @@ async def credit_winning_atomic(
     except Exception as e:
         logger.error(f"Error crediting winning balance for user {user_id}: {str(e)}")
         return False, f"Database error: {str(e)}", None
+
+
+async def get_wallet_by_user(session: AsyncSession, user_id: UUID):
+    """
+    Alias for get_wallet_for_user for bot compatibility.
+    
+    Args:
+        session: Database session
+        user_id: User UUID
+    
+    Returns:
+        Wallet instance or None if not found
+    """
+    return await get_wallet_for_user(session, user_id)

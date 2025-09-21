@@ -28,3 +28,19 @@ class ContestEntry(Base):
 
     def __repr__(self):
         return f"<ContestEntry(id={self.id}, contest_id={self.contest_id}, user_id={self.user_id}, amount={self.amount_debited})>"
+
+    def to_dict(self):
+        """Convert contest entry to dictionary for API responses"""
+        return {
+            "id": str(self.id),
+            "contest_id": str(self.contest_id),
+            "user_id": str(self.user_id),
+            "entry_code": self.entry_code,
+            "amount_debited": str(self.amount_debited),
+            "payout_tx_id": str(self.payout_tx_id) if self.payout_tx_id else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "telegram_id": getattr(self, 'telegram_id', None),  # Will be joined from user
+            "username": getattr(self, 'username', None),  # Will be joined from user
+            "winner_rank": getattr(self, 'winner_rank', None),  # Will be added by settlement
+            "payout_amount": getattr(self, 'payout_amount', None)  # Will be added by settlement
+        }

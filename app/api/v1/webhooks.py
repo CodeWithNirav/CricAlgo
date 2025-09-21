@@ -19,7 +19,6 @@ from app.db.session import get_db
 from app.repos.transaction_repo import get_transactions_by_user, update_transaction_metadata
 from app.repos.wallet_repo import get_wallet_for_user, update_balances_atomic
 from app.repos.user_repo import get_user_by_id
-from app.tasks.deposits import process_deposit
 from app.core.redis_client import get_redis_helper, get_redis
 
 # Configure logging
@@ -122,7 +121,7 @@ async def mark_deposit_processing_enqueued(redis_client, tx_hash: str) -> bool:
 
 
 @router.post("/bep20")
-async def bep20_webhook(payload: dict, request: Request):
+async def bep20_webhook(payload: WebhookPayload, request: Request):
     """
     BEP20 webhook - optimized for performance:
     - validate minimal fields
@@ -138,29 +137,48 @@ async def bep20_webhook(payload: dict, request: Request):
     from app.db.session import get_db
     from app.celery_app import celery_app
     
-    tx_hash = payload.get("tx_hash")
-    amount = payload.get("amount")
-    metadata = payload.get("metadata", {}) or {}
+    tx_hash = payload.tx_hash
+    amount = payload.amount
+    metadata = payload.metadata or {}
     
     if not tx_hash or amount is None:
         return JSONResponse(status_code=400, content={"ok": False, "error": "missing tx_hash or amount"})
+    
+    # Convert amount to string if it's numeric
+    try:
+        amount = str(amount)
+    except Exception:
+        return JSONResponse(status_code=400, content={"ok": False, "error": "invalid amount format"})
     
     tx_id = str(uuid.uuid4())
     
     # Quick DB insert with raw SQL for better performance
     try:
         async with get_db() as db:
+            # Add tx_hash to metadata
+            metadata["tx_hash"] = tx_hash
+            if payload.user_id:
+                metadata["telegram_id"] = payload.user_id
+            
             await db.execute(sa_text(
-                "INSERT INTO transactions (id, tx_hash, amount, metadata, status, created_at) "
-                "VALUES (:id, :tx_hash, :amount, :metadata, :status, now())"
-            ), {"id": tx_id, "tx_hash": tx_hash, "amount": amount, "metadata": json.dumps(metadata), "status": "pending"})
+                "INSERT INTO transactions (id, tx_type, amount, currency, metadata, status, created_at) "
+                "VALUES (:id, :tx_type, :amount, :currency, :metadata, :status, now())"
+            ), {
+                "id": tx_id, 
+                "tx_type": "deposit", 
+                "amount": amount, 
+                "currency": "USDT",
+                "metadata": json.dumps(metadata), 
+                "status": "pending"
+            })
             await db.commit()
     except Exception:
         logger.exception("failed to persist transaction record; continuing with enqueue", extra={"tx_hash": tx_hash})
     
     # Enqueue processing (idempotent)
     try:
-        celery_app.send_task("app.tasks.process_deposit", args=[tx_id], kwargs={}, queue="deposits")
+        from app.tasks.deposits import process_deposit
+        process_deposit.delay(tx_id, payload)
         logger.info("deposit_enqueued", extra={"tx_id": tx_id, "tx_hash": tx_hash, "enqueued_at": time.time()})
     except Exception:
         logger.exception("failed to enqueue deposit task", extra={"tx_hash": tx_hash})

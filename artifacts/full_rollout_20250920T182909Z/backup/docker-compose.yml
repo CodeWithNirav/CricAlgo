@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:password@postgres:5432/cricalgo
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - APP_ENV=development
+      - DEBUG=true
+      - ENABLE_TEST_TOTP_BYPASS=true
+      - ENABLE_TEST_CONTEST_SEED=true
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - .:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=cricalgo
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./cric_algo_postgre_sql_schema_ddl.sql:/docker-entrypoint-initdb.d/init.sql
+
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  worker:
+    build: .
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:password@postgres:5432/cricalgo
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - APP_ENV=development
+      - DEBUG=true
+      - ENABLE_TEST_TOTP_BYPASS=true
+      - ENABLE_TEST_CONTEST_SEED=true
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - .:/app
+    command: celery -A app.celery_app.celery worker --loglevel=info --concurrency=2
+
+volumes:
+  postgres_data:
+  redis_data:

@@ -6,12 +6,16 @@ import os
 from celery import Celery
 from app.core.config import settings
 
+# Use REDIS_URL as fallback for Celery broker
+broker_url = os.environ.get('CELERY_BROKER_URL', os.environ.get('REDIS_URL', settings.celery_broker_url))
+backend_url = os.environ.get('CELERY_RESULT_BACKEND', os.environ.get('REDIS_URL', settings.celery_result_backend))
+
 # Create Celery instance
 celery = Celery(
     "cricalgo",
-    broker=settings.celery_broker_url,
-    backend=settings.celery_result_backend,
-    include=["app.tasks.tasks", "app.tasks.webhook_processing"]
+    broker=broker_url,
+    backend=backend_url,
+    include=["app.tasks.tasks", "app.tasks.webhook_processing", "app.tasks.deposits"]
 )
 
 # Configure Celery

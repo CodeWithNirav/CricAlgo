@@ -5,6 +5,7 @@ Admin model matching the DDL schema
 from sqlalchemy import Column, String, Text, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from app.db.base import Base
 import uuid
 
@@ -20,6 +21,9 @@ class Admin(Base):
     totp_secret = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     last_login = Column(DateTime(timezone=True), nullable=True)
+
+    # Relationship
+    invitation_codes = relationship("InvitationCode", back_populates="admin")
 
     def __repr__(self):
         return f"<Admin(id={self.id}, username={self.username})>"

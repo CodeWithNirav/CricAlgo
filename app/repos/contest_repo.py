@@ -62,7 +62,7 @@ async def create_contest(
         entry_fee=entry_fee,
         max_players=max_participants,
         prize_structure=prize_structure,
-        status=ContestStatus.OPEN.value
+        status="open"
     )
     session.add(contest)
     await session.commit()
@@ -160,3 +160,119 @@ async def settle_contest(
     contest.status = 'settled'
     await session.commit()
     return True
+
+
+async def list_active_contests(session: AsyncSession):
+    """
+    List all active contests for bot display.
+    
+    Args:
+        session: Database session
+    
+    Returns:
+        List of active contest dictionaries
+    """
+    result = await session.execute(
+        select(Contest).where(Contest.status == ContestStatus.OPEN).order_by(Contest.created_at)
+    )
+    contests = result.scalars().all()
+    return [contest for contest in contests]
+
+
+async def get_contest_detail(session: AsyncSession, contest_id: str):
+    """
+    Get contest details by ID.
+    
+    Args:
+        session: Database session
+        contest_id: Contest ID as string
+    
+    Returns:
+        Contest instance or None if not found
+    """
+    try:
+        contest_uuid = UUID(contest_id)
+    except ValueError:
+        return None
+    
+    result = await session.execute(
+        select(Contest).where(Contest.id == contest_uuid)
+    )
+    return result.scalar_one_or_none()
+
+
+async def join_contest_atomic(session: AsyncSession, contest_id: str, telegram_id: int):
+    """
+    Atomically join a contest with wallet debit.
+    
+    Args:
+        session: Database session
+        contest_id: Contest ID as string
+        telegram_id: Telegram user ID
+    
+    Returns:
+        Dictionary with success status and details
+    """
+    from app.repos.user_repo import get_user_by_telegram_id
+    from app.repos.wallet_repo import get_wallet_for_user, debit_for_contest_entry
+    from app.models.contest_entry import ContestEntry
+    from decimal import Decimal
+    import uuid
+    
+    try:
+        # Get user by telegram ID
+        user = await get_user_by_telegram_id(session, telegram_id)
+        if not user:
+            return {"ok": False, "error": "User not registered"}
+        
+        # Get contest
+        contest = await get_contest_detail(session, contest_id)
+        if not contest:
+            return {"ok": False, "error": "Contest not found"}
+        
+        # Check if contest is still open
+        if contest.status != ContestStatus.OPEN:
+            return {"ok": False, "error": "Contest is not open"}
+        
+        # Get user's wallet
+        wallet = await get_wallet_for_user(session, user.id)
+        if not wallet:
+            return {"ok": False, "error": "No wallet found"}
+        
+        # Check if user already joined this contest
+        from sqlalchemy import select
+        existing_entry = await session.execute(
+            select(ContestEntry).where(
+                ContestEntry.contest_id == contest.id,
+                ContestEntry.user_id == user.id
+            )
+        )
+        if existing_entry.scalar_one_or_none():
+            return {"ok": False, "error": "Already joined this contest"}
+        
+        # Debit wallet for contest entry
+        entry_fee = Decimal(str(contest.entry_fee))
+        success, error = await debit_for_contest_entry(session, user.id, entry_fee)
+        if not success:
+            return {"ok": False, "error": error}
+        
+        # Create contest entry
+        entry_code = f"ENTRY_{int(time.time())}{uuid.uuid4().hex[:6].upper()}"
+        contest_entry = ContestEntry(
+            contest_id=contest.id,
+            user_id=user.id,
+            entry_code=entry_code,
+            amount_debited=entry_fee
+        )
+        session.add(contest_entry)
+        await session.commit()
+        
+        return {
+            "ok": True,
+            "contest_title": contest.title,
+            "entry_fee": str(entry_fee)
+        }
+        
+    except Exception as e:
+        await session.rollback()
+        return {"ok": False, "error": f"Database error: {str(e)}"}

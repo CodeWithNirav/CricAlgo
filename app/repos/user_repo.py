@@ -149,3 +149,78 @@ async def get_users(
     
     result = await session.execute(query)
     return result.scalars().all()
+
+
+async def create_user_if_not_exists(session: AsyncSession, telegram_id: int, username: str, invite_code: str = None):
+    """
+    Create user if not exists, return existing user if found.
+    
+    Args:
+        session: Database session
+        telegram_id: Telegram user ID
+        username: Username
+        invite_code: Optional invite code
+    
+    Returns:
+        User instance (existing or newly created)
+    """
+    # Check if user already exists
+    existing_user = await get_user_by_telegram_id(session, telegram_id)
+    if existing_user:
+        return existing_user
+    
+    # Create new user
+    user = await create_user(session, telegram_id, username)
+    
+    # Create wallet for the user
+    from app.repos.wallet_repo import create_wallet_for_user
+    await create_wallet_for_user(session, user.id)
+    
+    return user
+
+
+async def get_user_by_telegram(session: AsyncSession, telegram_id: int):
+    """
+    Alias for get_user_by_telegram_id for bot compatibility.
+    
+    Args:
+        session: Database session
+        telegram_id: Telegram user ID
+    
+    Returns:
+        User instance or None if not found
+    """
+    return await get_user_by_telegram_id(session, telegram_id)
+
+
+async def save_chat_id(session: AsyncSession, user_id: UUID, chat_id: str):
+    """
+    Save or update chat ID for user notifications.
+    
+    Args:
+        session: Database session
+        user_id: User UUID
+        chat_id: Telegram chat ID
+    
+    Returns:
+        True if successful
+    """
+    from app.models.chat_map import ChatMap
+    from sqlalchemy import select
+    
+    # Check if mapping already exists
+    result = await session.execute(
+        select(ChatMap).where(ChatMap.user_id == str(user_id))
+    )
+    existing = result.scalar_one_or_none()
+    
+    if existing:
+        # Update existing mapping
+        existing.chat_id = chat_id
+    else:
+        # Create new mapping
+        chat_map = ChatMap(user_id=str(user_id), chat_id=chat_id)
+        session.add(chat_map)
+    
+    await session.flush()
+    return True
