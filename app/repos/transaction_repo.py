@@ -6,7 +6,8 @@ from typing import Optional, List
 from uuid import UUID
 from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, update
+from datetime import datetime
 from app.models.transaction import Transaction
 
 
@@ -171,3 +172,44 @@ async def get_transaction_by_metadata(
     
     result = await session.execute(query.limit(1))
     return result.scalar_one_or_none()
+
+
+async def mark_transaction_processed(session: AsyncSession, transaction_id: str) -> bool:
+    """
+    Mark a transaction as processed.
+    
+    Args:
+        session: Database session
+        transaction_id: Transaction ID (string)
+    
+    Returns:
+        True if successful
+    """
+    await session.execute(
+        update(Transaction)
+        .where(Transaction.id == transaction_id)
+        .values(status="processed", processed_at=datetime.utcnow())
+    )
+    await session.commit()
+    return True
+
+
+async def mark_transaction_rejected(session: AsyncSession, transaction_id: str, reason: str = "") -> bool:
+    """
+    Mark a transaction as rejected.
+    
+    Args:
+        session: Database session
+        transaction_id: Transaction ID (string)
+        reason: Rejection reason
+    
+    Returns:
+        True if successful
+    """
+    await session.execute(
+        update(Transaction)
+        .where(Transaction.id == transaction_id)
+        .values(status="rejected", tx_metadata={"rejection_reason": reason})
+    )
+    await session.commit()
+    return True

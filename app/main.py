@@ -39,6 +39,7 @@ from app.api.v1.admin_contest import router as admin_contest_router
 from app.api.v1.debug import router as debug_router
 from app.api.v1.test_contest import router as test_contest_router
 from app.api.admin_ui import router as admin_ui_router
+from app.api.admin_finance import router as admin_finance_router
 from app.middleware.rate_limit import RateLimitMiddleware
 
 # Prometheus metrics
@@ -125,6 +126,7 @@ app.include_router(admin_contest_router, prefix="/api/v1/admin", tags=["admin-co
 app.include_router(debug_router, prefix="/api/v1/debug", tags=["debug"])
 app.include_router(test_contest_router, prefix="/api/v1/test", tags=["test"])
 app.include_router(admin_ui_router, tags=["admin-ui"])
+app.include_router(admin_finance_router, tags=["admin-finance"])
 
 if __name__ == "__main__":
     import uvicorn
