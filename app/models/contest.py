@@ -3,10 +3,10 @@ Contest model matching the DDL schema
 """
 
 from sqlalchemy import Column, String, Numeric, DateTime, Integer
-from sqlalchemy.dialects.postgresql import UUID, ENUM, JSONB
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
 from app.db.base import Base
-from app.models.enums import ContestStatus
+import sqlalchemy as sa
 import uuid
 
 
@@ -24,10 +24,8 @@ class Contest(Base):
     prize_structure = Column(JSONB, nullable=False, default={})
     commission_pct = Column(Numeric(5, 2), nullable=False, default=0)
     join_cutoff = Column(DateTime(timezone=True), nullable=True)
-    status = Column(ENUM(ContestStatus, name='contest_status'), nullable=False, default=ContestStatus.OPEN)
-    settled_at = Column(DateTime(timezone=True), nullable=True)
+    status = Column(sa.Enum('open','closed','settled','cancelled', name='contest_status', create_type=False), nullable=False, default='open')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     def __repr__(self):
         return f"<Contest(id={self.id}, code={self.code}, title={self.title}, entry_fee={self.entry_fee})>"
@@ -45,8 +43,6 @@ class Contest(Base):
             "prize_structure": self.prize_structure,
             "commission_pct": float(self.commission_pct) if self.commission_pct else 0,
             "join_cutoff": self.join_cutoff.isoformat() if self.join_cutoff else None,
-            "status": self.status.value if self.status else None,
-            "settled_at": self.settled_at.isoformat() if self.settled_at else None,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+            "status": self.status if self.status else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None
         }

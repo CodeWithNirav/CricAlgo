@@ -2,12 +2,45 @@ import React, {useEffect, useState} from "react";
 export default function Deposits(){
   const [items,setItems] = useState([]);
   const [loading,setLoading] = useState(true);
-  useEffect(()=>{ fetch("/api/v1/admin/deposits?status=pending",{headers:{Authorization: "Bearer "+sessionStorage.getItem("admin_token")}}).then(r=>r.json()).then(d=>{setItems(d);setLoading(false)}) },[]);
+  const [error, setError] = useState(null);
+  
+  useEffect(()=>{ 
+    fetch("/api/v1/admin/deposits?status=pending",{
+      headers:{Authorization: "Bearer "+sessionStorage.getItem("admin_token")}
+    })
+    .then(r => {
+      if (!r.ok) {
+        throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+      }
+      return r.json();
+    })
+    .then(d=>{
+      setItems(d);
+      setLoading(false);
+    })
+    .catch(err => {
+      console.error("Deposits API error:", err);
+      setError(err.message);
+      setLoading(false);
+    });
+  },[]);
+  
   async function act(id,action,note=""){
-    await fetch("/api/v1/admin/deposits/"+id+"/"+action,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+sessionStorage.getItem("admin_token")}, body: JSON.stringify({note})});
-    setItems(items.filter(i=>i.id!==id));
+    try {
+      await fetch("/api/v1/admin/deposits/"+id+"/"+action,{
+        method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":"Bearer "+sessionStorage.getItem("admin_token")}, 
+        body: JSON.stringify({note})
+      });
+      setItems(items.filter(i=>i.id!==id));
+    } catch (err) {
+      console.error("Action error:", err);
+      alert("Action failed: " + err.message);
+    }
   }
-  if(loading) return <div>Loading...</div>;
+  
+  if(loading) return <div className="p-4">Loading...</div>;
+  if(error) return <div className="p-4 text-red-600">Error: {error}</div>;
   return (
     <div className="p-4">
       <h2 className="text-xl font-semibold mb-4">Pending Deposits</h2>

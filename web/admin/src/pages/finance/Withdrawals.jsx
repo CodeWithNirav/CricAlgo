@@ -3,8 +3,27 @@ export default function Withdrawals(){
   const [items,setItems] = useState([]);
   useEffect(()=>{ fetch("/api/v1/admin/withdrawals?status=pending",{headers:{Authorization: "Bearer "+sessionStorage.getItem("admin_token")}}).then(r=>r.json()).then(d=>setItems(d)) },[]);
   async function act(id,action){
-    await fetch(`/api/v1/admin/withdrawals/${id}/${action}`,{method:"POST",headers:{"Authorization":"Bearer "+sessionStorage.getItem("admin_token")}});
-    setItems(items.filter(i=>i.id!==id));
+    let body = {};
+    if (action === "reject") {
+      const note = prompt("Enter rejection reason:");
+      if (!note) return;
+      body = { note: note };
+    }
+    
+    try {
+      await fetch(`/api/v1/admin/withdrawals/${id}/${action}`,{
+        method:"POST",
+        headers:{
+          "Authorization":"Bearer "+sessionStorage.getItem("admin_token"),
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+      setItems(items.filter(i=>i.id!==id));
+      alert(`${action === 'approve' ? 'Approved' : 'Rejected'} withdrawal successfully!`);
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
   }
   return (
     <div className="p-4">

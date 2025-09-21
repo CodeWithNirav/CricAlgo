@@ -7,6 +7,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import JSON
 from sqlalchemy.sql import func
 from app.db.base import Base
+import sqlalchemy as sa
 import uuid
 
 
@@ -22,7 +23,7 @@ class Transaction(Base):
     related_entity = Column(String(64), nullable=True)
     related_id = Column(UUID(as_uuid=True), nullable=True)
     tx_metadata = Column('metadata', JSON, nullable=True)
-    processed_at = Column(DateTime(timezone=True), nullable=True)
+    status = Column(sa.Enum('pending','confirmed','processed','rejected', name='transaction_status', create_type=False), nullable=False, default='pending')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     def __repr__(self):
@@ -38,9 +39,8 @@ class Transaction(Base):
             "related_entity": self.related_entity,
             "related_id": str(self.related_id) if self.related_id else None,
             "tx_metadata": self.tx_metadata,
-            "processed_at": self.processed_at.isoformat() if self.processed_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
-            "status": getattr(self, 'status', 'pending'),
+            "status": self.status if self.status else 'pending',
             "tx_hash": self.tx_metadata.get('tx_hash', '') if self.tx_metadata else '',
             "telegram_id": self.tx_metadata.get('telegram_id', '') if self.tx_metadata else '',
             "username": self.tx_metadata.get('username', '') if self.tx_metadata else ''

@@ -22,3 +22,12 @@ class User(Base):
 
     def __repr__(self):
         return f"<User(id={self.id}, username={self.username}, telegram_id={self.telegram_id})>"
+    
+    def to_dict(self):
+        return {
+            "id": str(self.id),
+            "telegram_id": self.telegram_id,
+            "username": self.username,
+            "status": self.status.value if self.status else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None
+        }

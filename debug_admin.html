@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Admin UI</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .debug { background: #f0f0f0; padding: 10px; margin: 10px 0; }
+        .error { background: #ffebee; color: #c62828; }
+        .success { background: #e8f5e8; color: #2e7d32; }
+    </style>
+</head>
+<body>
+    <h1>Debug Admin UI</h1>
+    
+    <div class="debug">
+        <h3>Test 1: Check if server is running</h3>
+        <div id="server-status">Testing...</div>
+    </div>
+    
+    <div class="debug">
+        <h3>Test 2: Check admin UI access</h3>
+        <div id="admin-ui-status">Testing...</div>
+    </div>
+    
+    <div class="debug">
+        <h3>Test 3: Check API endpoints</h3>
+        <div id="api-status">Testing...</div>
+    </div>
+    
+    <div class="debug">
+        <h3>Test 4: Check JavaScript loading</h3>
+        <div id="js-status">Testing...</div>
+    </div>
+    
+    <div class="debug">
+        <h3>Instructions</h3>
+        <p>1. Open browser developer tools (F12)</p>
+        <p>2. Go to Console tab</p>
+        <p>3. Go to <a href="http://localhost:8000/admin" target="_blank">http://localhost:8000/admin</a></p>
+        <p>4. Look for any JavaScript errors</p>
+        <p>5. Check Network tab for failed requests</p>
+    </div>
+
+    <script>
+        // Test server
+        fetch('http://localhost:8000/')
+            .then(response => {
+                document.getElementById('server-status').innerHTML = 
+                    '<span class="success">✅ Server is running (Status: ' + response.status + ')</span>';
+            })
+            .catch(error => {
+                document.getElementById('server-status').innerHTML = 
+                    '<span class="error">❌ Server not running: ' + error.message + '</span>';
+            });
+        
+        // Test admin UI
+        fetch('http://localhost:8000/admin')
+            .then(response => {
+                document.getElementById('admin-ui-status').innerHTML = 
+                    '<span class="success">✅ Admin UI accessible (Status: ' + response.status + ')</span>';
+            })
+            .catch(error => {
+                document.getElementById('admin-ui-status').innerHTML = 
+                    '<span class="error">❌ Admin UI not accessible: ' + error.message + '</span>';
+            });
+        
+        // Test API
+        fetch('http://localhost:8000/api/v1/admin/matches')
+            .then(response => {
+                document.getElementById('api-status').innerHTML = 
+                    '<span class="success">✅ API accessible (Status: ' + response.status + ')</span>';
+            })
+            .catch(error => {
+                document.getElementById('api-status').innerHTML = 
+                    '<span class="error">❌ API not accessible: ' + error.message + '</span>';
+            });
+        
+        // Test JavaScript
+        fetch('http://localhost:8000/assets/index-196fa790.js')
+            .then(response => {
+                document.getElementById('js-status').innerHTML = 
+                    '<span class="success">✅ JavaScript file accessible (Status: ' + response.status + ')</span>';
+            })
+            .catch(error => {
+                document.getElementById('js-status').innerHTML = 
+                    '<span class="error">❌ JavaScript file not accessible: ' + error.message + '</span>';
+            });
+    </script>
+</body>
+</html>

@@ -38,9 +38,12 @@ from app.api.v1.admin import router as admin_router
 from app.api.v1.admin_contest import router as admin_contest_router
 from app.api.v1.debug import router as debug_router
 from app.api.v1.test_contest import router as test_contest_router
+from app.api.v1.contest_join import router as contest_join_router
+from app.api.v1.withdrawals_api import router as withdrawals_api_router
 from app.api.admin_ui import router as admin_ui_router
 from app.api.admin_finance import router as admin_finance_router
 from app.api.admin_matches_contests import router as admin_matches_contests_router
+from app.api.admin_manage import router as admin_manage_router
 from app.middleware.rate_limit import RateLimitMiddleware
 
 # Prometheus metrics
@@ -122,6 +125,8 @@ app.include_router(webhooks_router, prefix="/api/v1", tags=["webhooks"])
 app.include_router(auth_router, prefix="/api/v1", tags=["authentication"])
 app.include_router(wallet_router, prefix="/api/v1", tags=["wallet"])
 app.include_router(contest_router, prefix="/api/v1", tags=["contest"])
+app.include_router(contest_join_router, prefix="/api/v1", tags=["contest-join"])
+app.include_router(withdrawals_api_router, prefix="/api/v1", tags=["withdrawals"])
 app.include_router(admin_router, prefix="/api/v1", tags=["admin"])
 app.include_router(admin_contest_router, prefix="/api/v1/admin", tags=["admin-contest"])
 app.include_router(debug_router, prefix="/api/v1/debug", tags=["debug"])
@@ -129,6 +134,7 @@ app.include_router(test_contest_router, prefix="/api/v1/test", tags=["test"])
 app.include_router(admin_ui_router, tags=["admin-ui"])
 app.include_router(admin_finance_router, tags=["admin-finance"])
 app.include_router(admin_matches_contests_router, tags=["admin-matches-contests"])
+app.include_router(admin_manage_router)
 
 if __name__ == "__main__":
     import uvicorn

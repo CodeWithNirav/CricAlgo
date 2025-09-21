@@ -1,0 +1,8 @@
+[Unit]
+Description=Run CricAlgo DB backup
+[Service]
+Type=oneshot
+Environment=BACKUP_DIR=/var/backups/cricalgo
+ExecStart=/usr/local/bin/db_backup.sh
+WorkingDirectory=/opt/cricalgo
+User=root

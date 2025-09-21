@@ -16,7 +16,40 @@ export default function MatchDetail({matchId}){
   return (
     <div className="p-4">
       <h2 className="text-xl font-semibold mb-4">Contests for Match {matchId}</h2>
-      <a className="bg-green-600 text-white px-3 py-1 rounded" href={`#/match/${matchId}/create-contest`}>Create Contest</a>
+      <button 
+        className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
+        onClick={() => {
+          const title = prompt("Enter contest title:");
+          const entryFee = prompt("Enter entry fee:");
+          const maxPlayers = prompt("Enter max players:");
+          if (title && entryFee && maxPlayers) {
+            fetch("/api/v1/admin/contests", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer " + sessionStorage.getItem("admin_token")
+              },
+              body: JSON.stringify({
+                match_id: matchId,
+                title: title,
+                entry_fee: parseFloat(entryFee),
+                max_players: parseInt(maxPlayers),
+                prize_structure: {"1": 0.6, "2": 0.4}
+              })
+            })
+            .then(r => r.json())
+            .then(data => {
+              alert("Contest created successfully!");
+              window.location.reload();
+            })
+            .catch(err => {
+              alert("Error creating contest: " + err.message);
+            });
+          }
+        }}
+      >
+        Create Contest
+      </button>
       <ul className="mt-4">
         {contests.map(c=>(
           <li key={c.id} className="border p-2 rounded bg-white mb-2">
@@ -26,7 +59,14 @@ export default function MatchDetail({matchId}){
                 <div className="text-sm text-gray-600">Entry: {c.entry_fee}</div>
               </div>
               <div>
-                <a className="text-blue-600" href={`#/contest/${c.id}`}>Open</a>
+                <button 
+                  className="text-blue-600 hover:text-blue-800 underline"
+                  onClick={() => {
+                    window.location.hash = `contest/${c.id}`;
+                  }}
+                >
+                  Open
+                </button>
               </div>
             </div>
           </li>

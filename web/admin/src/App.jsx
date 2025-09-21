@@ -6,6 +6,8 @@ import Audit from "./pages/finance/Audit";
 import Matches from "./pages/matches/Matches";
 import MatchDetail from "./pages/matches/MatchDetail";
 import ContestDetail from "./pages/matches/ContestDetail";
+import InviteCodes from "./pages/invitecodes/InviteCodes";
+import Users from "./pages/users/Users";
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -17,11 +19,13 @@ export default function App() {
       setIsLoggedIn(true);
       // Check hash for page routing
       const hash = window.location.hash.substring(1);
-      if (hash && ["deposits", "withdrawals", "audit", "matches"].includes(hash)) {
+      if (hash && ["deposits", "withdrawals", "audit", "matches", "invitecodes", "users"].includes(hash)) {
         setCurrentPage(hash);
       } else if (hash && hash.startsWith("match/")) {
         setCurrentPage(hash);
       } else if (hash && hash.startsWith("contest/")) {
+        setCurrentPage(hash);
+      } else if (hash && hash.startsWith("user/")) {
         setCurrentPage(hash);
       } else {
         setCurrentPage("deposits");
@@ -50,6 +54,10 @@ export default function App() {
         return <Audit />;
       case "matches":
         return <Matches />;
+      case "invitecodes":
+        return <InviteCodes />;
+      case "users":
+        return <Users />;
       default:
         if (currentPage.startsWith("match/")) {
           const matchId = currentPage.split("/")[1];
@@ -58,6 +66,10 @@ export default function App() {
         if (currentPage.startsWith("contest/")) {
           const contestId = currentPage.split("/")[1];
           return <ContestDetail contestId={contestId} />;
+        }
+        if (currentPage.startsWith("user/")) {
+          const userId = currentPage.split("/")[1];
+          return <div className="p-4">User details for {userId} (not implemented yet)</div>;
         }
         return <Deposits />;
     }
@@ -116,6 +128,28 @@ export default function App() {
                   onClick={() => setCurrentPage("matches")}
                 >
                   Matches
+                </a>
+                <a
+                  href="#invitecodes"
+                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                    currentPage === "invitecodes"
+                      ? "border-blue-500 text-gray-900"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                  onClick={() => setCurrentPage("invitecodes")}
+                >
+                  Invite Codes
+                </a>
+                <a
+                  href="#users"
+                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                    currentPage === "users"
+                      ? "border-blue-500 text-gray-900"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                  onClick={() => setCurrentPage("users")}
+                >
+                  Users
                 </a>
               </div>
             </div>

@@ -17,13 +17,24 @@ def upgrade():
     # Add 'settled' to contest_status enum
     with op.get_context().autocommit_block():
         conn = op.get_bind()
-        # Add 'settled' value to contest_status enum
-        conn.execute("ALTER TYPE contest_status ADD VALUE 'settled'")
+        # Add 'settled' value to contest_status enum if it doesn't exist
+        conn.execute(sa.text("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_enum 
+                WHERE enumlabel = 'settled' 
+                AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'contest_status')
+            ) THEN
+                ALTER TYPE contest_status ADD VALUE 'settled';
+            END IF;
+        END$$;
+        """))
     
     # Add settled_at column to contests if missing
     with op.get_context().autocommit_block():
         conn = op.get_bind()
-        conn.execute("""
+        conn.execute(sa.text("""
         DO $$
         BEGIN
             IF NOT EXISTS (
@@ -33,12 +44,12 @@ def upgrade():
                 ALTER TABLE contests ADD COLUMN settled_at TIMESTAMP WITH TIME ZONE;
             END IF;
         END$$;
-        """)
+        """))
     
     # Add updated_at column to contests if missing
     with op.get_context().autocommit_block():
         conn = op.get_bind()
-        conn.execute("""
+        conn.execute(sa.text("""
         DO $$
         BEGIN
             IF NOT EXISTS (
@@ -48,12 +59,12 @@ def upgrade():
                 ALTER TABLE contests ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT now();
             END IF;
         END$$;
-        """)
+        """))
     
     # Rename entries table to contest_entries
     with op.get_context().autocommit_block():
         conn = op.get_bind()
-        conn.execute("""
+        conn.execute(sa.text("""
         DO $$
         BEGIN
             IF EXISTS (
@@ -66,12 +77,12 @@ def upgrade():
                 ALTER TABLE entries RENAME TO contest_entries;
             END IF;
         END$$;
-        """)
+        """))
     
     # Add payout_tx_id column to contest_entries if missing
     with op.get_context().autocommit_block():
         conn = op.get_bind()
-        conn.execute("""
+        conn.execute(sa.text("""
         DO $$
         BEGIN
             IF NOT EXISTS (
@@ -81,14 +92,14 @@ def upgrade():
                 ALTER TABLE contest_entries ADD COLUMN payout_tx_id UUID;
             END IF;
         END$$;
-        """)
+        """))
 
 def downgrade():
     with op.get_context().autocommit_block():
         conn = op.get_bind()
         
         # Rename contest_entries back to entries
-        conn.execute("""
+        conn.execute(sa.text("""
         DO $$
         BEGIN
             IF EXISTS (
@@ -101,7 +112,7 @@ def downgrade():
                 ALTER TABLE contest_entries RENAME TO entries;
             END IF;
         END$$;
-        """)
+        """))
         
         # Note: We don't remove 'settled' from enum or drop columns to avoid data loss
         # The enum value and columns will remain for safety
