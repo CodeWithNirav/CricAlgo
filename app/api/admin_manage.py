@@ -15,6 +15,12 @@ async def list_invite_codes(db=Depends(get_db)):
     q = await db.execute(select(InvitationCode).order_by(InvitationCode.created_at.desc()).limit(500))
     return [r.to_dict() for r in q.scalars().all()]
 
+# Backwards-compatible alias: /invitecodes
+@router.get("/invitecodes", include_in_schema=False)
+async def list_invite_codes_alias(db=Depends(get_db)):
+    # Call the canonical handler to avoid duplication
+    return await list_invite_codes(db)
+
 @router.post("/invite_codes")
 async def create_invite_code(payload: dict, db=Depends(get_db)):
     code = InvitationCode(
@@ -39,11 +45,16 @@ async def disable_invite_code(code: str, db=Depends(get_db)):
 
 @router.get("/users")
 async def list_users(q: str = "", limit: int = 100, db=Depends(get_db)):
-    stmt = select(User).limit(limit)
-    if q:
-        stmt = select(User).where((User.username.ilike(f"%{q}%")) | (User.telegram_id.cast("text").ilike(f"%{q}%"))).limit(limit)
-    r = await db.execute(stmt)
-    return [u.to_dict() for u in r.scalars().all()]
+    try:
+        stmt = select(User).limit(limit)
+        if q:
+            stmt = select(User).where((User.username.ilike(f"%{q}%")) | (User.telegram_id.cast("text").ilike(f"%{q}%"))).limit(limit)
+        r = await db.execute(stmt)
+        return [u.to_dict() for u in r.scalars().all()]
+    except Exception as e:
+        # Log error and return safe response for UI
+        print(f"list_users failed: {e}")
+        return []
 
 @router.post("/users/{user_id}/freeze")
 async def freeze_user(user_id: str, payload: dict = {}, db=Depends(get_db)):

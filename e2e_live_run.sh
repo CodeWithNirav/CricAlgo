@@ -50,7 +50,7 @@ log "5) Create deposit via webhook"
 TX="e2e-live-${TS}"
 curl -s -X POST "$HTTP/api/v1/webhooks/bep20" \
   -H "Content-Type: application/json" \
-  -d "{\"tx_hash\":\"$TX\",\"telegram_id\":693173957,\"amount\":20.0,\"confirmations\":12}" \
+  -d "{\"tx_hash\":\"$TX\",\"user_id\":\"f2264ff0-d342-4620-860a-f5d9139ecc4a\",\"amount\":\"20.0\",\"confirmations\":12}" \
   > "$ART/webhook.json"
 
 sleep 10  # allow Celery worker to process

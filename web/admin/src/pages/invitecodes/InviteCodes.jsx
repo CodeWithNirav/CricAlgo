@@ -16,7 +16,8 @@ export default function InviteCodes() {
         setCodes(data);
         setError(null);
       } else {
-        setError("Failed to load invite codes");
+        const text = await r.text().catch(() => null);
+        setError(`Failed to load invite codes: ${r.status} ${text || ''}`);
       }
     } catch (err) {
       setError("Error loading invite codes: " + err.message);

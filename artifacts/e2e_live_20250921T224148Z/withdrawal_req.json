@@ -1,0 +1,8 @@
+﻿{
+    "id":  "92de2fc0-f3f3-4e6f-9114-e8ab7d889271",
+    "telegram_id":  693173957,
+    "amount":  "2.0",
+    "address":  "0xdeadbeef",
+    "status":  "pending",
+    "message":  "Withdrawal request created successfully"
+}

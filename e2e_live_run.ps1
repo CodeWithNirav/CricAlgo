@@ -108,8 +108,8 @@ try {
     $TX = "e2e-live-$TS"
     $WebhookBody = @{
         tx_hash = $TX
-        telegram_id = 693173957
-        amount = 20.0
+        user_id = "f2264ff0-d342-4620-860a-f5d9139ecc4a"
+        amount = "20.0"
         confirmations = 12
     } | ConvertTo-Json
 

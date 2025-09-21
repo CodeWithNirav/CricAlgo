@@ -1,41 +1,41 @@
 {
   "status": "running",
-  "start_time": "2025-09-21T05:29:01.317718+00:00",
+  "start_time": "2025-09-21T17:05:20.775860+00:00",
   "steps": [
     {
       "step": "Starting smoke test",
       "status": "info",
-      "timestamp": "2025-09-21T05:29:01.317740+00:00",
-      "details": "Test ID: 1758432541"
+      "timestamp": "2025-09-21T17:05:20.776057+00:00",
+      "details": "Test ID: 1758474320"
     },
     {
       "step": "Waiting for services to be ready",
       "status": "info",
-      "timestamp": "2025-09-21T05:29:01.337521+00:00",
+      "timestamp": "2025-09-21T17:05:20.780308+00:00",
       "details": ""
     },
     {
       "step": "App health check",
       "status": "success",
-      "timestamp": "2025-09-21T05:29:02.939917+00:00",
+      "timestamp": "2025-09-21T17:05:22.087409+00:00",
       "details": "App is responding"
     },
     {
       "step": "API docs",
       "status": "success",
-      "timestamp": "2025-09-21T05:29:02.949811+00:00",
+      "timestamp": "2025-09-21T17:05:22.103891+00:00",
       "details": "Docs are accessible"
     },
     {
       "step": "Service readiness timeout",
       "status": "error",
-      "timestamp": "2025-09-21T05:30:03.469842+00:00",
+      "timestamp": "2025-09-21T17:06:22.844648+00:00",
       "details": "Services not ready after 60s"
     }
   ],
   "assertions": [],
   "final_balances": {},
   "errors": [],
-  "end_time": "2025-09-21T05:30:03.470384+00:00",
-  "duration_seconds": 62.152666
+  "end_time": "2025-09-21T17:06:22.848354+00:00",
+  "duration_seconds": 62.072494
 }

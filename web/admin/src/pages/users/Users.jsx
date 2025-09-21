@@ -17,7 +17,9 @@ export default function Users() {
         setUsers(data);
         setError(null);
       } else {
-        setError("Failed to search users");
+        const txt = await r.text().catch(() => null);
+        setError(`Failed to search users: ${r.status} ${txt || ''}`);
+        return;
       }
     } catch (err) {
       setError("Error searching users: " + err.message);
