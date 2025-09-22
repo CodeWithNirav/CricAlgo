@@ -226,17 +226,187 @@ async def view_my_contests_callback(callback_query: CallbackQuery):
         )
 
 
-@callback_router.callback_query(F.data == "contest_details")
+@callback_router.callback_query(F.data.startswith("contest_details:"))
 async def contest_details_callback(callback_query: CallbackQuery):
     """Handle contest details callback"""
     await callback_query.answer()
     
-    # This would show detailed contest information
-    # For now, redirect to contests
-    await callback_query.message.edit_text(
-        "🏏 Contest Details\n\n"
-        "Use /contests to see all available contests with their details."
-    )
+    try:
+        # Extract contest ID from callback data
+        contest_id_str = callback_query.data.split(":", 1)[1]
+        from uuid import UUID
+        contest_id = UUID(contest_id_str)
+        
+        async with async_session() as session:
+            # Get contest details
+            contest = await get_contest_by_id(session, contest_id)
+            if not contest:
+                await callback_query.message.edit_text(
+                    "❌ Contest not found or no longer available."
+                )
+                return
+            
+            # Get current entries
+            current_entries = await get_contest_entries(session, contest_id)
+            entry_count = len(current_entries)
+            
+            # Get prize structure info
+            prize_info = ""
+            if hasattr(contest, 'prize_structure') and contest.prize_structure:
+                if isinstance(contest.prize_structure, dict):
+                    prize_info = f"🏆 Prize Structure:\n"
+                    for position, amount in contest.prize_structure.items():
+                        prize_info += f"  {position}: {amount} {contest.currency}\n"
+                else:
+                    prize_info = f"🏆 Prize: {contest.prize_structure} {contest.currency}\n"
+            else:
+                prize_info = f"🏆 Prize: Winner takes all ({contest.entry_fee * entry_count} {contest.currency})\n"
+            
+            # Format start time
+            start_time = contest.start_time.strftime('%Y-%m-%d %H:%M UTC') if contest.start_time else "TBD"
+            
+            # Contest details text
+            details_text = (
+                f"🏏 Contest Details\n\n"
+                f"🎯 Title: {contest.title}\n"
+                f"💰 Entry Fee: {contest.entry_fee} {contest.currency}\n"
+                f"👥 Players: {entry_count}/{contest.max_players or '∞'}\n"
+                f"📅 Start Time: {start_time}\n"
+                f"📊 Status: {contest.status.title()}\n\n"
+                f"{prize_info}\n"
+                f"📝 Description:\n"
+                f"{contest.description or 'No description available.'}\n\n"
+                f"⚠️ Rules:\n"
+                f"• Entry fee will be deducted from your wallet\n"
+                f"• Prizes are distributed after contest completion\n"
+                f"• All decisions are final"
+            )
+            
+            # Create action buttons
+            action_buttons = []
+            
+            # Join button (only if contest is open and not full)
+            if contest.status == "open" and (not contest.max_players or entry_count < contest.max_players):
+                action_buttons.append([
+                    InlineKeyboardButton(
+                        text="🎯 Join Contest",
+                        callback_data=f"join_contest:{contest.id}"
+                    )
+                ])
+            
+            # View entries button (if user is admin or participant)
+            user = await get_user_by_telegram_id(session, callback_query.from_user.id)
+            if user:
+                # Check if user is participant
+                user_entries = [e for e in current_entries if e.user_id == user.id]
+                if user_entries:
+                    action_buttons.append([
+                        InlineKeyboardButton(
+                            text="📊 View My Entry",
+                            callback_data=f"view_my_entry:{contest.id}"
+                        )
+                    ])
+            
+            # Back to contests button
+            action_buttons.append([
+                InlineKeyboardButton(text="🏏 Back to Contests", callback_data="contests"),
+                InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")
+            ])
+            
+            keyboard = InlineKeyboardMarkup(inline_keyboard=action_buttons)
+            
+            await callback_query.message.edit_text(details_text, reply_markup=keyboard)
+            
+    except ValueError as e:
+        logger.error(f"Invalid contest ID format: {e}")
+        await callback_query.message.edit_text(
+            "❌ Invalid contest ID format."
+        )
+    except Exception as e:
+        logger.error(f"Error showing contest details: {e}")
+        await callback_query.message.edit_text(
+            "❌ An error occurred while retrieving contest details. Please try again later."
+        )
+
+
+@callback_router.callback_query(F.data.startswith("view_my_entry:"))
+async def view_my_entry_callback(callback_query: CallbackQuery):
+    """Handle view my entry callback"""
+    await callback_query.answer()
+    
+    try:
+        # Extract contest ID from callback data
+        contest_id_str = callback_query.data.split(":", 1)[1]
+        from uuid import UUID
+        contest_id = UUID(contest_id_str)
+        
+        async with async_session() as session:
+            # Get user
+            user = await get_user_by_telegram_id(session, callback_query.from_user.id)
+            if not user:
+                await callback_query.message.edit_text(
+                    "❌ User not found. Please use /start first."
+                )
+                return
+            
+            # Get contest
+            contest = await get_contest_by_id(session, contest_id)
+            if not contest:
+                await callback_query.message.edit_text(
+                    "❌ Contest not found."
+                )
+                return
+            
+            # Get user's entry
+            from app.repos.contest_entry_repo import get_user_contest_entries
+            user_entries = await get_user_contest_entries(session, user.id, contest_id=contest_id, limit=1)
+            
+            if not user_entries:
+                await callback_query.message.edit_text(
+                    "❌ You haven't joined this contest yet."
+                )
+                return
+            
+            entry = user_entries[0]
+            
+            # Get current position (if contest is settled)
+            position_text = ""
+            if contest.status == "settled" and hasattr(entry, 'position') and entry.position:
+                position_text = f"🏆 Final Position: #{entry.position}\n"
+                if hasattr(entry, 'prize_amount') and entry.prize_amount:
+                    position_text += f"💰 Prize Won: {entry.prize_amount} {contest.currency}\n"
+            
+            # Entry details text
+            entry_text = (
+                f"📊 Your Contest Entry\n\n"
+                f"🏏 Contest: {contest.title}\n"
+                f"💰 Entry Fee: {entry.entry_fee} {contest.currency}\n"
+                f"📅 Joined: {entry.created_at.strftime('%Y-%m-%d %H:%M')}\n"
+                f"📊 Contest Status: {contest.status.title()}\n\n"
+                f"{position_text}"
+                f"🆔 Entry ID: {entry.id}\n"
+                f"📝 Notes: Entry is confirmed and active"
+            )
+            
+            # Action buttons
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🏏 Contest Details", callback_data=f"contest_details:{contest.id}")],
+                [InlineKeyboardButton(text="🏏 Back to Contests", callback_data="contests")],
+                [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
+            ])
+            
+            await callback_query.message.edit_text(entry_text, reply_markup=keyboard)
+            
+    except ValueError as e:
+        logger.error(f"Invalid contest ID format: {e}")
+        await callback_query.message.edit_text(
+            "❌ Invalid contest ID format."
+        )
+    except Exception as e:
+        logger.error(f"Error viewing contest entry: {e}")
+        await callback_query.message.edit_text(
+            "❌ An error occurred while retrieving your entry. Please try again later."
+        )
 
 
 @callback_router.callback_query(F.data == "support")

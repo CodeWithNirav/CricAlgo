@@ -226,20 +226,39 @@ async def contests_command(message: Message):
             keyboard_buttons = []
             
             for contest in contests:
+                # Get current entry count
+                from app.repos.contest_entry_repo import get_contest_entries
+                current_entries = await get_contest_entries(session, contest.id)
+                entry_count = len(current_entries)
+                
                 contests_text += (
                     f"🎯 {contest.title}\n"
                     f"💰 Entry Fee: {contest.entry_fee} {contest.currency}\n"
-                    f"👥 Max Players: {contest.max_players or 'Unlimited'}\n"
+                    f"👥 Players: {entry_count}/{contest.max_players or '∞'}\n"
                     f"📅 Status: {contest.status.title()}\n\n"
                 )
                 
-                # Add join button for each contest
-                keyboard_buttons.append([
-                    InlineKeyboardButton(
-                        text=f"Join {contest.title[:20]}...",
-                        callback_data=f"join_contest:{contest.id}"
+                # Add buttons for each contest
+                contest_buttons = []
+                
+                # Join button (only if contest is open and not full)
+                if contest.status == "open" and (not contest.max_players or entry_count < contest.max_players):
+                    contest_buttons.append(
+                        InlineKeyboardButton(
+                            text="🎯 Join",
+                            callback_data=f"join_contest:{contest.id}"
+                        )
                     )
-                ])
+                
+                # View details button
+                contest_buttons.append(
+                    InlineKeyboardButton(
+                        text="📊 Details",
+                        callback_data=f"contest_details:{contest.id}"
+                    )
+                )
+                
+                keyboard_buttons.append(contest_buttons)
             
             # Add main menu button
             keyboard_buttons.append([
