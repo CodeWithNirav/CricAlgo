@@ -23,21 +23,28 @@ export default function MatchDetail({matchId}){
           const entryFee = prompt("Enter entry fee:");
           const maxPlayers = prompt("Enter max players:");
           if (title && entryFee && maxPlayers) {
-            fetch("/api/v1/admin/contests", {
+            fetch(`/api/v1/admin/matches/${matchId}/contests`, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
                 "Authorization": "Bearer " + sessionStorage.getItem("admin_token")
               },
               body: JSON.stringify({
-                match_id: matchId,
                 title: title,
-                entry_fee: parseFloat(entryFee),
+                entry_fee: entryFee,
                 max_players: parseInt(maxPlayers),
                 prize_structure: {"1": 0.6, "2": 0.4}
               })
             })
-            .then(r => r.json())
+            .then(r => {
+              if (r.ok) {
+                return r.json();
+              } else {
+                return r.json().then(errorData => {
+                  throw new Error(errorData?.detail?.error || errorData?.detail || `HTTP ${r.status}`);
+                });
+              }
+            })
             .then(data => {
               alert("Contest created successfully!");
               window.location.reload();

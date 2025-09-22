@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_admin, verify_password, create_access_token
 from app.db.session import get_db
-from app.repos.user_repo import get_users, get_user_by_id
+from app.repos.user_repo import get_users, get_user_by_id, search_users
 from app.repos.transaction_repo import get_transaction_by_id, update_transaction_metadata
 from app.repos.audit_log_repo import create_audit_log, get_audit_logs
 from app.tasks.tasks import process_withdrawal
@@ -115,6 +115,7 @@ async def get_users_list(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     status_filter: Optional[str] = Query(None, description="Filter by user status"),
+    q: Optional[str] = Query(None, description="Search query (username or telegram ID)"),
     current_admin: Admin = Depends(get_current_admin),
     session: AsyncSession = Depends(get_db)
 ):
@@ -122,12 +123,22 @@ async def get_users_list(
     Get list of users (admin only).
     """
     try:
-        users = await get_users(
-            session,
-            limit=limit,
-            offset=offset,
-            status=status_filter
-        )
+        if q:
+            # Use search functionality
+            users = await search_users(
+                session,
+                query=q,
+                limit=limit,
+                offset=offset
+            )
+        else:
+            # Use regular get_users
+            users = await get_users(
+                session,
+                limit=limit,
+                offset=offset,
+                status=status_filter
+            )
         
         return UserListResponse(
             users=[

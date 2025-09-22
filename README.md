@@ -26,7 +26,7 @@ CricAlgo is a comprehensive cricket trading platform that combines real-time dat
 
 2. **Run smoke tests:**
    ```bash
-   ./scripts/smoke_and_checks.sh
+   python scripts/smoke_test.py
    ```
 
 3. **Load testing:**

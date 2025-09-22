@@ -21,6 +21,11 @@ from app.models.enums import UserStatus
 # Setup debug logger
 debug_logger = logging.getLogger("auth_debug")
 debug_logger.setLevel(logging.DEBUG)
+
+# Create artifacts directory if it doesn't exist
+import os
+os.makedirs("artifacts", exist_ok=True)
+
 debug_handler = logging.FileHandler("artifacts/auth_debug.log")
 debug_handler.setLevel(logging.DEBUG)
 debug_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')

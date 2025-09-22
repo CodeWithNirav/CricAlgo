@@ -171,7 +171,7 @@ async def seed_sample_match_and_contest(session):
     # Create sample match
     match = Match(
         title="India vs Australia - Test Match",
-        starts_at=datetime.utcnow() + timedelta(hours=2),
+        start_time=datetime.utcnow() + timedelta(hours=2),
         external_id="IND-AUS-2024-001"
     )
     session.add(match)

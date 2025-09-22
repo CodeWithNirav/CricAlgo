@@ -30,7 +30,6 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
       - ./cric_algo_postgre_sql_schema_ddl.sql:/docker-entrypoint-initdb.d/init.sql
 
   redis:

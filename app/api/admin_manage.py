@@ -1,5 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import select, update
+from pydantic import BaseModel
+from typing import Optional
+from datetime import datetime
 from app.core.auth import get_current_admin
 from app.db.session import get_db
 from app.models.invitation_code import InvitationCode
@@ -9,6 +12,14 @@ from app.models.audit_log import AuditLog
 from decimal import Decimal
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin_manage"])
+
+
+class CreateInviteCodeRequest(BaseModel):
+    """Request model for creating invite codes"""
+    code: str
+    max_uses: int = 10
+    expires_at: Optional[datetime] = None
+    enabled: bool = True
 
 @router.get("/invite_codes")
 async def list_invite_codes(current_admin=Depends(get_current_admin), db=Depends(get_db)):
@@ -28,20 +39,52 @@ async def list_invite_codes_alias(current_admin=Depends(get_current_admin), db=D
     return await list_invite_codes(current_admin, db)
 
 @router.post("/invite_codes")
-async def create_invite_code(payload: dict, current_admin=Depends(get_current_admin), db=Depends(get_db)):
+async def create_invite_code(
+    payload: CreateInviteCodeRequest, 
+    current_admin=Depends(get_current_admin), 
+    db=Depends(get_db)
+):
+    """
+    Create a new invite code.
+    """
     try:
+        # Check if code already exists
+        existing_code = await db.execute(
+            select(InvitationCode).where(InvitationCode.code == payload.code)
+        )
+        if existing_code.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"error": "Invite code already exists"}
+            )
+        
+        # Create new invite code
         code = InvitationCode(
-            code=payload.get("code"), 
-            max_uses=payload.get("max_uses"), 
-            expires_at=payload.get("expires_at"), 
-            enabled=payload.get("enabled", True), 
+            code=payload.code,
+            max_uses=payload.max_uses,
+            expires_at=payload.expires_at,
+            enabled=payload.enabled,
             created_by=None
         )
         db.add(code)
-        db.add(AuditLog(action="create_invite_code", details=payload, actor="web_admin"))
+        
+        # Log the action
+        db.add(AuditLog(
+            action="create_invite_code", 
+            details={
+                "code": payload.code,
+                "max_uses": payload.max_uses,
+                "expires_at": payload.expires_at.isoformat() if payload.expires_at else None,
+                "enabled": payload.enabled
+            }
+        ))
+        
         await db.commit()
         await db.refresh(code)
         return code.to_dict()
+        
+    except HTTPException:
+        raise
     except Exception as e:
         await db.rollback()
         raise HTTPException(
@@ -50,12 +93,27 @@ async def create_invite_code(payload: dict, current_admin=Depends(get_current_ad
         )
 
 @router.post("/invite_codes/{code}/disable")
-async def disable_invite_code(code: str, db=Depends(get_db)):
+async def disable_invite_code(code: str, current_admin=Depends(get_current_admin), db=Depends(get_db)):
+    """
+    Disable an invite code.
+    """
     try:
+        # Check if code exists
+        existing_code = await db.execute(
+            select(InvitationCode).where(InvitationCode.code == code)
+        )
+        if not existing_code.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "Invite code not found"}
+            )
+        
         await db.execute(update(InvitationCode).where(InvitationCode.code==code).values(enabled=False))
-        db.add(AuditLog(action="disable_invite_code", details={"code":code}, actor="web_admin"))
+        db.add(AuditLog(action="disable_invite_code", details={"code":code}))
         await db.commit()
         return {"ok": True}
+    except HTTPException:
+        raise
     except Exception as e:
         await db.rollback()
         raise HTTPException(
@@ -63,13 +121,92 @@ async def disable_invite_code(code: str, db=Depends(get_db)):
             detail={"error": f"Failed to disable invite code: {str(e)}"}
         )
 
-# Users endpoint moved to v1/admin.py to avoid conflicts
+
+@router.post("/invite_codes/{code}/enable")
+async def enable_invite_code(code: str, current_admin=Depends(get_current_admin), db=Depends(get_db)):
+    """
+    Enable an invite code.
+    """
+    try:
+        # Check if code exists
+        existing_code = await db.execute(
+            select(InvitationCode).where(InvitationCode.code == code)
+        )
+        if not existing_code.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "Invite code not found"}
+            )
+        
+        await db.execute(update(InvitationCode).where(InvitationCode.code==code).values(enabled=True))
+        db.add(AuditLog(action="enable_invite_code", details={"code":code}))
+        await db.commit()
+        return {"ok": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": f"Failed to enable invite code: {str(e)}"}
+        )
+
+# Users endpoint
+@router.get("/users")
+async def get_users_list(
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    status_filter: Optional[str] = Query(None, description="Filter by user status"),
+    q: Optional[str] = Query(None, description="Search query (username or telegram ID)"),
+    current_admin=Depends(get_current_admin),
+    db=Depends(get_db)
+):
+    """
+    Get list of users (admin only).
+    """
+    try:
+        from app.repos.user_repo import get_users, search_users
+        
+        if q:
+            # Use search functionality
+            users = await search_users(
+                db,
+                query=q,
+                limit=limit,
+                offset=offset
+            )
+        else:
+            # Use regular get_users
+            users = await get_users(
+                db,
+                limit=limit,
+                offset=offset,
+                status=status_filter
+            )
+        
+        # Return just the users array for frontend compatibility
+        return [
+            {
+                "id": str(user.id),
+                "username": user.username,
+                "telegram_id": user.telegram_id,
+                "status": user.status.value,
+                "created_at": user.created_at.isoformat()
+            }
+            for user in users
+        ]
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get users: {str(e)}"
+        )
 
 @router.post("/users/{user_id}/freeze")
 async def freeze_user(user_id: str, payload: dict = {}, db=Depends(get_db)):
     try:
         await db.execute(update(User).where(User.id==user_id).values(status="frozen"))
-        db.add(AuditLog(action="freeze_user", details={"user_id":user_id,"reason":payload.get("reason")}, actor="web_admin"))
+        db.add(AuditLog(action="freeze_user", details={"user_id":user_id,"reason":payload.get("reason")}))
         await db.commit()
         return {"ok": True}
     except Exception as e:
@@ -83,7 +220,7 @@ async def freeze_user(user_id: str, payload: dict = {}, db=Depends(get_db)):
 async def unfreeze_user(user_id: str, payload: dict = {}, db=Depends(get_db)):
     try:
         await db.execute(update(User).where(User.id==user_id).values(status="active"))
-        db.add(AuditLog(action="unfreeze_user", details={"user_id":user_id}, actor="web_admin"))
+        db.add(AuditLog(action="unfreeze_user", details={"user_id":user_id}))
         await db.commit()
         return {"ok": True}
     except Exception as e:
@@ -114,7 +251,7 @@ async def adjust_balance(user_id: str, payload: dict, db=Depends(get_db)):
             w.winning_balance = w.winning_balance + amount
         else:
             w.bonus_balance = w.bonus_balance + amount
-        db.add(AuditLog(action="adjust_balance", details={"user_id":user_id,"bucket":bucket,"amount":str(amount),"reason":payload.get("reason")}, actor="web_admin"))
+        db.add(AuditLog(action="adjust_balance", details={"user_id":user_id,"bucket":bucket,"amount":str(amount),"reason":payload.get("reason")}))
         await db.commit()
         return {"ok": True}
     except HTTPException:

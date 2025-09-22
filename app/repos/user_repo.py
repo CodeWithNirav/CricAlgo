@@ -5,7 +5,7 @@ User repository with async CRUD operations
 from typing import Optional, List
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, or_
 from app.models.user import User
 from app.models.enums import UserStatus
 
@@ -224,3 +224,65 @@ async def save_chat_id(session: AsyncSession, user_id: UUID, chat_id: str):
     
     await session.flush()
     return True
+
+
+async def update_user_status(
+    session: AsyncSession,
+    user_id: UUID,
+    status: UserStatus
+) -> Optional[User]:
+    """
+    Update user status.
+    
+    Args:
+        session: Database session
+        user_id: User UUID
+        status: New status
+    
+    Returns:
+        Updated User instance or None if not found
+    """
+    return await update_user(session, user_id, status=status)
+
+
+async def search_users(
+    session: AsyncSession,
+    query: str,
+    limit: int = 50,
+    offset: int = 0
+) -> List[User]:
+    """
+    Search users by username or telegram ID.
+    
+    Args:
+        session: Database session
+        query: Search query (username or telegram ID)
+        limit: Maximum number of users to return
+        offset: Number of users to skip
+    
+    Returns:
+        List of User instances matching the search
+    """
+    # Try to parse as telegram ID first
+    try:
+        telegram_id = int(query)
+        # Search by telegram ID
+        result = await session.execute(
+            select(User).where(User.telegram_id == telegram_id)
+        )
+        users = result.scalars().all()
+        if users:
+            return users
+    except ValueError:
+        pass
+    
+    # Search by username (case-insensitive partial match)
+    result = await session.execute(
+        select(User).where(
+            or_(
+                User.username.ilike(f"%{query}%"),
+                User.username.ilike(f"{query}%")
+            )
+        ).order_by(desc(User.created_at)).limit(limit).offset(offset)
+    )
+    return result.scalars().all()

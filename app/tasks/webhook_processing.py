@@ -9,7 +9,7 @@ from uuid import UUID
 
 from app.celery_app import celery
 from app.core.config import settings
-from app.core.redis_client import get_redis
+from app.core.redis_client import get_redis_client
 from app.repos.transaction_repo import create_transaction
 from app.models.transaction import Transaction
 from app.tasks.deposits import process_deposit
@@ -94,7 +94,7 @@ def process_webhook_async(self, tx_hash: str, payload_data: Dict[str, Any]):
                 confirmations = payload_data.get("confirmations", 0)
                 if confirmations >= settings.confirmation_threshold:
                     # Get Redis client
-                    redis_client = await get_redis()
+                    redis_client = await get_redis_client()
                     
                     if redis_client:
                         # Check if already enqueued

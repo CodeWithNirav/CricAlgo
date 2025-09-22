@@ -1,10 +1,21 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.responses import StreamingResponse
 import csv
 import io
 from typing import List, Dict, Any
 from pydantic import BaseModel
 from uuid import UUID
+from sqlalchemy import select, and_
+from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime
+
+from app.core.auth import get_current_admin
+from app.db.session import get_db
+from app.models.match import Match
+from app.models.contest import Contest
+from app.models.contest_entry import ContestEntry
+from app.models.user import User
+from app.models.admin import Admin
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin_matches_contests"])
 
@@ -27,99 +38,212 @@ class WinnerSelection(BaseModel):
 
 
 @router.get("/matches")
-async def list_matches():
-    """List all matches - simplified version"""
-    return [
-        {
-            "id": "match-1",
-            "title": "Test Cricket Match 1",
-            "starts_at": "2024-01-15T10:00:00Z",
-            "status": "scheduled"
-        },
-        {
-            "id": "match-2", 
-            "title": "Test Cricket Match 2",
-            "starts_at": "2024-01-16T14:00:00Z",
-            "status": "scheduled"
-        }
-    ]
+async def list_matches(
+    current_admin: Admin = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """List all matches from database"""
+    try:
+        # Query all matches from database
+        stmt = select(Match).order_by(Match.start_time.desc())
+        result = await db.execute(stmt)
+        matches = result.scalars().all()
+        
+        # Convert to format expected by frontend
+        return [match.to_dict() for match in matches]
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": f"Failed to fetch matches: {str(e)}"}
+        )
 
 
 @router.post("/matches")
-async def create_match(payload: MatchCreate):
-    """Create a new match - simplified version"""
-    return {
-        "message": "Match created successfully!",
-        "match": {
-            "id": f"match-{len(payload.title)}",
-            "title": payload.title,
-            "starts_at": payload.start_time,
-            "status": "scheduled"
+async def create_match(
+    payload: MatchCreate,
+    current_admin: Admin = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Create a new match in database"""
+    try:
+        # Parse start_time if provided
+        start_time = None
+        if payload.start_time:
+            try:
+                start_time = datetime.fromisoformat(payload.start_time.replace('Z', '+00:00'))
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={"error": "Invalid start_time format. Use ISO format (YYYY-MM-DDTHH:MM:SSZ)"}
+                )
+        
+        # Create new match
+        match = Match(
+            title=payload.title,
+            start_time=start_time or datetime.now(),
+            external_id=payload.external_id
+        )
+        
+        db.add(match)
+        await db.commit()
+        await db.refresh(match)
+        
+        return {
+            "message": "Match created successfully!",
+            "match": match.to_dict()
         }
-    }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": f"Failed to create match: {str(e)}"}
+        )
 
 
 @router.get("/matches/{match_id}/contests")
-async def list_contests_for_match(match_id: str):
-    """List contests for a specific match - simplified version"""
-    return [
-        {
-            "id": f"contest-{match_id}-1",
-            "title": f"Contest for {match_id}",
-            "entry_fee": "5.0",
-            "max_players": 10,
-            "prize_structure": {"1": 0.6, "2": 0.4}
-        }
-    ]
+async def list_contests_for_match(
+    match_id: str,
+    current_admin: Admin = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """List contests for a specific match from database"""
+    try:
+        # Query contests for the specific match
+        stmt = select(Contest).where(Contest.match_id == match_id).order_by(Contest.created_at.desc())
+        result = await db.execute(stmt)
+        contests = result.scalars().all()
+        
+        # Convert to format expected by frontend
+        return [contest.to_dict() for contest in contests]
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": f"Failed to fetch contests: {str(e)}"}
+        )
 
 
 @router.post("/matches/{match_id}/contests")
-async def create_contest_for_match(match_id: str, payload: ContestCreate):
-    """Create a contest for a specific match - simplified version"""
-    return {
-        "message": "Contest created successfully!",
-        "contest": {
-            "id": f"contest-{match_id}-new",
-            "title": payload.title,
-            "entry_fee": payload.entry_fee,
-            "max_players": payload.max_players,
-            "prize_structure": payload.prize_structure
+async def create_contest_for_match(
+    match_id: str, 
+    payload: ContestCreate,
+    current_admin: Admin = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Create a contest for a specific match in database"""
+    try:
+        # Verify match exists
+        match_stmt = select(Match).where(Match.id == match_id)
+        match_result = await db.execute(match_stmt)
+        match = match_result.scalar_one_or_none()
+        
+        if not match:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "Match not found"}
+            )
+        
+        # Generate unique contest code
+        import random
+        import string
+        contest_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+        
+        # Create new contest
+        contest = Contest(
+            match_id=match_id,
+            code=contest_code,
+            title=payload.title,
+            entry_fee=float(payload.entry_fee),
+            max_players=payload.max_players,
+            prize_structure=payload.prize_structure
+        )
+        
+        db.add(contest)
+        await db.commit()
+        await db.refresh(contest)
+        
+        return {
+            "message": "Contest created successfully!",
+            "contest": contest.to_dict()
         }
-    }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": f"Failed to create contest: {str(e)}"}
+        )
 
 
 @router.get("/contests/{contest_id}")
-async def get_contest(contest_id: str):
-    """Get contest details - simplified version"""
-    return {
-        "id": contest_id,
-        "title": f"Contest {contest_id}",
-        "entry_fee": "5.0",
-        "max_players": 10,
-        "prize_structure": {"1": 0.6, "2": 0.4},
-        "status": "open"
-    }
+async def get_contest(
+    contest_id: str,
+    current_admin: Admin = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get contest details from database"""
+    try:
+        # Query contest by ID
+        stmt = select(Contest).where(Contest.id == contest_id)
+        result = await db.execute(stmt)
+        contest = result.scalar_one_or_none()
+        
+        if not contest:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "Contest not found"}
+            )
+        
+        return contest.to_dict()
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": f"Failed to fetch contest: {str(e)}"}
+        )
 
 
 @router.get("/contests/{contest_id}/entries")
-async def get_contest_entries(contest_id: str):
-    """Get contest entries - simplified version"""
-    return [
-        {
-            "id": f"entry-{contest_id}-1",
-            "telegram_id": "123456789",
-            "username": "testuser1",
-            "amount_debited": "5.0",
-            "winner_rank": None
-        },
-        {
-            "id": f"entry-{contest_id}-2",
-            "telegram_id": "987654321",
-            "username": "testuser2", 
-            "amount_debited": "5.0",
-            "winner_rank": None
-        }
-    ]
+async def get_contest_entries(
+    contest_id: str,
+    current_admin: Admin = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get contest entries from database"""
+    try:
+        # Query contest entries with user information
+        stmt = select(ContestEntry, User).join(
+            User, ContestEntry.user_id == User.id
+        ).where(ContestEntry.contest_id == contest_id).order_by(ContestEntry.created_at.desc())
+        
+        result = await db.execute(stmt)
+        entries_with_users = result.all()
+        
+        # Convert to format expected by frontend
+        entries = []
+        for entry, user in entries_with_users:
+            entry_dict = entry.to_dict()
+            entry_dict.update({
+                "telegram_id": str(user.telegram_id),
+                "username": user.username
+            })
+            entries.append(entry_dict)
+        
+        return entries
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": f"Failed to fetch contest entries: {str(e)}"}
+        )
 
 
 @router.post("/contests/{contest_id}/select_winners")

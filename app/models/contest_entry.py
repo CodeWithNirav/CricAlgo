@@ -10,15 +10,14 @@ import uuid
 
 
 class ContestEntry(Base):
-    """Contest entry model - matches contest_entries table in DDL"""
-    __tablename__ = "contest_entries"
+    """Contest entry model - matches entries table in DDL"""
+    __tablename__ = "entries"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     contest_id = Column(UUID(as_uuid=True), nullable=False)
     user_id = Column(UUID(as_uuid=True), nullable=False)
     entry_code = Column(String(64), nullable=False, unique=True)
     amount_debited = Column(Numeric(30, 8), nullable=False)
-    payout_tx_id = Column(UUID(as_uuid=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Constraints
@@ -37,7 +36,6 @@ class ContestEntry(Base):
             "user_id": str(self.user_id),
             "entry_code": self.entry_code,
             "amount_debited": str(self.amount_debited),
-            "payout_tx_id": str(self.payout_tx_id) if self.payout_tx_id else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "telegram_id": getattr(self, 'telegram_id', None),  # Will be joined from user
             "username": getattr(self, 'username', None),  # Will be joined from user
