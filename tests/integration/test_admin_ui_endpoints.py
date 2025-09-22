@@ -16,38 +16,38 @@ from app.models.contest import Contest
 from app.models.contest_entry import ContestEntry
 from app.models.wallet import Wallet
 from app.models.transaction import Transaction
-from app.core.auth import hash_password
+from app.core.auth import get_password_hash
 from decimal import Decimal
 import uuid
 from datetime import datetime, timedelta
 
 
 @pytest.fixture
-async def admin_user(db_session: AsyncSession):
+async def admin_user(async_session: AsyncSession):
     """Create a test admin user"""
     admin = Admin(
         username="test_admin",
-        password_hash=hash_password("test_password"),
+        password_hash=get_password_hash("test_password"),
         email="test@example.com",
         totp_secret=None
     )
-    db_session.add(admin)
-    await db_session.commit()
-    await db_session.refresh(admin)
+    async_session.add(admin)
+    await async_session.commit()
+    await async_session.refresh(admin)
     return admin
 
 
 @pytest.fixture
-async def test_user(db_session: AsyncSession):
+async def test_user(async_session: AsyncSession):
     """Create a test user"""
     user = User(
         telegram_id=123456789,
         username="testuser",
         status="ACTIVE"
     )
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
+    async_session.add(user)
+    await async_session.commit()
+    await async_session.refresh(user)
     
     # Create wallet for user
     wallet = Wallet(
@@ -56,14 +56,14 @@ async def test_user(db_session: AsyncSession):
         winning_balance=Decimal("50.00"),
         bonus_balance=Decimal("25.00")
     )
-    db_session.add(wallet)
-    await db_session.commit()
+    async_session.add(wallet)
+    await async_session.commit()
     
     return user
 
 
 @pytest.fixture
-async def test_invite_code(db_session: AsyncSession, admin_user: Admin):
+async def test_invite_code(async_session: AsyncSession, admin_user: Admin):
     """Create a test invite code"""
     invite_code = InvitationCode(
         code="TEST123",
@@ -72,28 +72,28 @@ async def test_invite_code(db_session: AsyncSession, admin_user: Admin):
         enabled=True,
         created_by=admin_user.id
     )
-    db_session.add(invite_code)
-    await db_session.commit()
-    await db_session.refresh(invite_code)
+    async_session.add(invite_code)
+    await async_session.commit()
+    await async_session.refresh(invite_code)
     return invite_code
 
 
 @pytest.fixture
-async def test_match(db_session: AsyncSession):
+async def test_match(async_session: AsyncSession):
     """Create a test match"""
     match = Match(
         title="Test Match",
         starts_at=datetime.utcnow() + timedelta(hours=1),
         external_id="test-match-001"
     )
-    db_session.add(match)
-    await db_session.commit()
-    await db_session.refresh(match)
+    async_session.add(match)
+    await async_session.commit()
+    await async_session.refresh(match)
     return match
 
 
 @pytest.fixture
-async def test_contest(db_session: AsyncSession, test_match: Match):
+async def test_contest(async_session: AsyncSession, test_match: Match):
     """Create a test contest"""
     contest = Contest(
         match_id=test_match.id,
@@ -107,14 +107,14 @@ async def test_contest(db_session: AsyncSession, test_match: Match):
         join_cutoff=datetime.utcnow() + timedelta(minutes=30),
         status="open"
     )
-    db_session.add(contest)
-    await db_session.commit()
-    await db_session.refresh(contest)
+    async_session.add(contest)
+    await async_session.commit()
+    await async_session.refresh(contest)
     return contest
 
 
 @pytest.fixture
-async def test_contest_entry(db_session: AsyncSession, test_contest: Contest, test_user: User):
+async def test_contest_entry(async_session: AsyncSession, test_contest: Contest, test_user: User):
     """Create a test contest entry"""
     entry = ContestEntry(
         contest_id=test_contest.id,
@@ -122,9 +122,9 @@ async def test_contest_entry(db_session: AsyncSession, test_contest: Contest, te
         entry_code="ENTRY-001",
         amount_debited=test_contest.entry_fee
     )
-    db_session.add(entry)
-    await db_session.commit()
-    await db_session.refresh(entry)
+    async_session.add(entry)
+    await async_session.commit()
+    await async_session.refresh(entry)
     return entry
 
 
@@ -148,9 +148,9 @@ async def admin_token(admin_user: Admin):
 class TestAdminLogin:
     """Test admin login endpoint"""
     
-    async def test_admin_login_success(self, client: AsyncClient, admin_user: Admin):
+    async def test_admin_login_success(self, test_test_client: AsyncClient, admin_user: Admin):
         """Test successful admin login"""
-        response = await client.post(
+        response = await test_client.post(
             "/api/v1/admin/login",
             json={
                 "username": "test_admin",
@@ -163,9 +163,9 @@ class TestAdminLogin:
         assert "access_token" in data
         assert data["token_type"] == "bearer"
     
-    async def test_admin_login_invalid_credentials(self, client: AsyncClient):
+    async def test_admin_login_invalid_credentials(self, test_test_client: AsyncClient):
         """Test admin login with invalid credentials"""
-        response = await client.post(
+        response = await test_client.post(
             "/api/v1/admin/login",
             json={
                 "username": "invalid_user",
@@ -177,9 +177,9 @@ class TestAdminLogin:
         data = response.json()
         assert "Invalid credentials" in data["detail"]
     
-    async def test_admin_login_missing_fields(self, client: AsyncClient):
+    async def test_admin_login_missing_fields(self, test_test_client: AsyncClient):
         """Test admin login with missing fields"""
-        response = await client.post(
+        response = await test_client.post(
             "/api/v1/admin/login",
             json={
                 "username": "test_admin"
@@ -193,9 +193,9 @@ class TestAdminLogin:
 class TestInviteCodes:
     """Test invite codes endpoints"""
     
-    async def test_list_invite_codes(self, client: AsyncClient, admin_token: str, test_invite_code: InvitationCode):
+    async def test_list_invite_codes(self, test_client: AsyncClient, admin_token: str, test_invite_code: InvitationCode):
         """Test listing invite codes"""
-        response = await client.get(
+        response = await test_client.get(
             "/api/v1/admin/invite_codes",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
@@ -209,9 +209,9 @@ class TestInviteCodes:
         codes = [item["code"] for item in data]
         assert "TEST123" in codes
     
-    async def test_list_invite_codes_alias(self, client: AsyncClient, admin_token: str, test_invite_code: InvitationCode):
+    async def test_list_invite_codes_alias(self, test_client: AsyncClient, admin_token: str, test_invite_code: InvitationCode):
         """Test listing invite codes via alias endpoint"""
-        response = await client.get(
+        response = await test_client.get(
             "/api/v1/admin/invitecodes",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
@@ -221,9 +221,9 @@ class TestInviteCodes:
         assert isinstance(data, list)
         assert len(data) >= 1
     
-    async def test_create_invite_code(self, client: AsyncClient, admin_token: str):
+    async def test_create_invite_code(self, test_client: AsyncClient, admin_token: str):
         """Test creating an invite code"""
-        response = await client.post(
+        response = await test_client.post(
             "/api/v1/admin/invite_codes",
             json={
                 "code": "NEW123",
@@ -240,9 +240,9 @@ class TestInviteCodes:
         assert data["max_uses"] == 5
         assert data["enabled"] is True
     
-    async def test_disable_invite_code(self, client: AsyncClient, admin_token: str, test_invite_code: InvitationCode):
+    async def test_disable_invite_code(self, test_client: AsyncClient, admin_token: str, test_invite_code: InvitationCode):
         """Test disabling an invite code"""
-        response = await client.post(
+        response = await test_client.post(
             f"/api/v1/admin/invite_codes/{test_invite_code.code}/disable",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
@@ -251,18 +251,18 @@ class TestInviteCodes:
         data = response.json()
         assert data["ok"] is True
     
-    async def test_invite_codes_unauthorized(self, client: AsyncClient):
+    async def test_invite_codes_unauthorized(self, test_client: AsyncClient):
         """Test invite codes endpoints without authentication"""
-        response = await client.get("/api/v1/admin/invite_codes")
+        response = await test_client.get("/api/v1/admin/invite_codes")
         assert response.status_code == 401
 
 
 class TestUsers:
     """Test users endpoints"""
     
-    async def test_search_users(self, client: AsyncClient, admin_token: str, test_user: User):
+    async def test_search_users(self, test_client: AsyncClient, admin_token: str, test_user: User):
         """Test searching users"""
-        response = await client.get(
+        response = await test_client.get(
             "/api/v1/admin/users",
             params={"q": "testuser"},
             headers={"Authorization": f"Bearer {admin_token}"}
@@ -277,9 +277,9 @@ class TestUsers:
         usernames = [user["username"] for user in data]
         assert "testuser" in usernames
     
-    async def test_search_users_empty(self, client: AsyncClient, admin_token: str):
+    async def test_search_users_empty(self, test_client: AsyncClient, admin_token: str):
         """Test searching users with no results"""
-        response = await client.get(
+        response = await test_client.get(
             "/api/v1/admin/users",
             params={"q": "nonexistentuser"},
             headers={"Authorization": f"Bearer {admin_token}"}
@@ -290,9 +290,9 @@ class TestUsers:
         assert isinstance(data, list)
         assert len(data) == 0
     
-    async def test_freeze_user(self, client: AsyncClient, admin_token: str, test_user: User):
+    async def test_freeze_user(self, test_client: AsyncClient, admin_token: str, test_user: User):
         """Test freezing a user"""
-        response = await client.post(
+        response = await test_client.post(
             f"/api/v1/admin/users/{test_user.id}/freeze",
             json={"reason": "Test freeze"},
             headers={"Authorization": f"Bearer {admin_token}"}
@@ -302,9 +302,9 @@ class TestUsers:
         data = response.json()
         assert data["ok"] is True
     
-    async def test_unfreeze_user(self, client: AsyncClient, admin_token: str, test_user: User):
+    async def test_unfreeze_user(self, test_client: AsyncClient, admin_token: str, test_user: User):
         """Test unfreezing a user"""
-        response = await client.post(
+        response = await test_client.post(
             f"/api/v1/admin/users/{test_user.id}/unfreeze",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
@@ -313,9 +313,9 @@ class TestUsers:
         data = response.json()
         assert data["ok"] is True
     
-    async def test_adjust_balance(self, client: AsyncClient, admin_token: str, test_user: User):
+    async def test_adjust_balance(self, test_client: AsyncClient, admin_token: str, test_user: User):
         """Test adjusting user balance"""
-        response = await client.post(
+        response = await test_client.post(
             f"/api/v1/admin/users/{test_user.id}/adjust_balance",
             json={
                 "bucket": "deposit",
@@ -329,9 +329,9 @@ class TestUsers:
         data = response.json()
         assert data["ok"] is True
     
-    async def test_adjust_balance_invalid_bucket(self, client: AsyncClient, admin_token: str, test_user: User):
+    async def test_adjust_balance_invalid_bucket(self, test_client: AsyncClient, admin_token: str, test_user: User):
         """Test adjusting balance with invalid bucket"""
-        response = await client.post(
+        response = await test_client.post(
             f"/api/v1/admin/users/{test_user.id}/adjust_balance",
             json={
                 "bucket": "invalid",
@@ -349,9 +349,9 @@ class TestUsers:
 class TestMatches:
     """Test matches endpoints"""
     
-    async def test_list_matches(self, client: AsyncClient, admin_token: str, test_match: Match):
+    async def test_list_matches(self, test_client: AsyncClient, admin_token: str, test_match: Match):
         """Test listing matches"""
-        response = await client.get(
+        response = await test_client.get(
             "/api/v1/admin/matches",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
@@ -365,9 +365,9 @@ class TestMatches:
         titles = [match["title"] for match in data]
         assert "Test Match" in titles
     
-    async def test_create_match(self, client: AsyncClient, admin_token: str):
+    async def test_create_match(self, test_client: AsyncClient, admin_token: str):
         """Test creating a match"""
-        response = await client.post(
+        response = await test_client.post(
             "/api/v1/admin/matches",
             json={
                 "title": "New Test Match",
@@ -386,9 +386,9 @@ class TestMatches:
 class TestContests:
     """Test contests endpoints"""
     
-    async def test_list_contests(self, client: AsyncClient, admin_token: str, test_contest: Contest):
+    async def test_list_contests(self, test_client: AsyncClient, admin_token: str, test_contest: Contest):
         """Test listing contests"""
-        response = await client.get(
+        response = await test_client.get(
             "/api/v1/admin/contests",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
@@ -402,9 +402,9 @@ class TestContests:
         codes = [contest["code"] for contest in data]
         assert "TEST-CONTEST-001" in codes
     
-    async def test_get_contest(self, client: AsyncClient, admin_token: str, test_contest: Contest):
+    async def test_get_contest(self, test_client: AsyncClient, admin_token: str, test_contest: Contest):
         """Test getting a specific contest"""
-        response = await client.get(
+        response = await test_client.get(
             f"/api/v1/admin/contests/{test_contest.id}",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
@@ -414,9 +414,9 @@ class TestContests:
         assert data["code"] == "TEST-CONTEST-001"
         assert data["title"] == "Test Contest"
     
-    async def test_get_contest_entries(self, client: AsyncClient, admin_token: str, test_contest: Contest, test_contest_entry: ContestEntry):
+    async def test_get_contest_entries(self, test_client: AsyncClient, admin_token: str, test_contest: Contest, test_contest_entry: ContestEntry):
         """Test getting contest entries"""
-        response = await client.get(
+        response = await test_client.get(
             f"/api/v1/admin/contests/{test_contest.id}/entries",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
@@ -434,29 +434,29 @@ class TestContests:
 class TestErrorHandling:
     """Test error handling in admin endpoints"""
     
-    async def test_invalid_endpoint(self, client: AsyncClient, admin_token: str):
+    async def test_invalid_endpoint(self, test_client: AsyncClient, admin_token: str):
         """Test invalid endpoint returns 404"""
-        response = await client.get(
+        response = await test_client.get(
             "/api/v1/admin/invalid_endpoint",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
         
         assert response.status_code == 404
     
-    async def test_invalid_contest_id(self, client: AsyncClient, admin_token: str):
+    async def test_invalid_contest_id(self, test_client: AsyncClient, admin_token: str):
         """Test invalid contest ID returns proper error"""
         invalid_id = str(uuid.uuid4())
-        response = await client.get(
+        response = await test_client.get(
             f"/api/v1/admin/contests/{invalid_id}",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
         
         assert response.status_code == 404
     
-    async def test_invalid_user_id(self, client: AsyncClient, admin_token: str):
+    async def test_invalid_user_id(self, test_client: AsyncClient, admin_token: str):
         """Test invalid user ID returns proper error"""
         invalid_id = str(uuid.uuid4())
-        response = await client.post(
+        response = await test_client.post(
             f"/api/v1/admin/users/{invalid_id}/freeze",
             json={"reason": "Test"},
             headers={"Authorization": f"Bearer {admin_token}"}

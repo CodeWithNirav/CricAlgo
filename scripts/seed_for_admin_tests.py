@@ -23,7 +23,7 @@ from app.models.contest_entry import ContestEntry
 from app.models.wallet import Wallet
 from app.models.transaction import Transaction
 from app.models.audit_log import AuditLog
-from app.core.auth import hash_password
+from app.core.auth import get_password_hash
 from sqlalchemy import select
 import uuid
 
@@ -45,7 +45,7 @@ async def seed_admin_user(session):
     # Create admin user
     admin = Admin(
         username="ADMIN_SEED_USER",
-        password_hash=hash_password("admin123"),
+        password_hash=get_password_hash("admin123"),
         email="admin@cricalgo.com",
         totp_secret=None  # No 2FA for test admin
     )

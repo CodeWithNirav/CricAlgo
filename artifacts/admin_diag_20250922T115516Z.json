@@ -1,0 +1,57 @@
+{
+  "timestamp": "20250922T115516Z",
+  "version": "1.0.0",
+  "admin_ui_status": "built",
+  "api_endpoints": {
+    "invite_codes": "/api/v1/admin/invite_codes",
+    "invite_codes_alias": "/api/v1/admin/invitecodes",
+    "users": "/api/v1/admin/users",
+    "matches": "/api/v1/admin/matches",
+    "contests": "/api/v1/admin/contests",
+    "admin_login": "/api/v1/admin/login"
+  },
+  "consolidated_scripts": {
+    "health_check": "scripts/health_check.sh",
+    "rollback": "scripts/rollback.sh",
+    "smoke_test": "scripts/smoke_test.sh"
+  },
+  "archived_scripts": [
+    "scripts/_archive/health_check_enhanced.sh",
+    "scripts/_archive/rollback_nginx.sh",
+    "scripts/_archive/rollback_istio.sh",
+    "scripts/_archive/rollback_universal.sh",
+    "scripts/_archive/smoke_and_checks.ps1",
+    "scripts/_archive/smoke_and_checks.sh",
+    "scripts/_archive/test_smoke.ps1"
+  ],
+  "security_checks": {
+    "debug_endpoints_gated": true,
+    "totp_bypass_gated": true,
+    "no_hardcoded_secrets": true,
+    "admin_auth_required": true
+  },
+  "frontend_build": {
+    "status": "success",
+    "files": [
+      "app/static/admin/index.html",
+      "app/static/admin/assets/index-0a3dd74a.js",
+      "app/static/admin/assets/index-4be2f783.css"
+    ]
+  },
+  "database_migrations": {
+    "status": "ready",
+    "tables": [
+      "invite_codes",
+      "chat_map",
+      "contest_entries",
+      "users",
+      "admins",
+      "matches",
+      "contests"
+    ]
+  },
+  "seed_script": {
+    "file": "scripts/seed_for_admin_tests.py",
+    "env_var": "SEED_ADMIN=true"
+  }
+}
