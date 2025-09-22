@@ -52,6 +52,11 @@ async def process_deposit_async(tx_id, payload=None):
             await db.commit()
             
             logger.info(f"Transaction {tx_id} marked as processed")
+            
+            # Send notification to user
+            from app.tasks.notify import send_deposit_confirmation
+            await send_deposit_confirmation(tx_id)
+            
             return True
             
         except Exception as e:

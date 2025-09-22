@@ -35,3 +35,8 @@ async def approve_withdrawal(db, withdrawal_id):
     w.status = 'approved'
     await db.flush()
     return True
+
+
+async def get_withdrawal_by_id(session, withdrawal_id):
+    """Get withdrawal by ID - alias for compatibility"""
+    return await get_withdrawal(session, withdrawal_id)

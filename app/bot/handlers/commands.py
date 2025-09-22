@@ -17,6 +17,7 @@ from app.repos.user_repo import get_user_by_telegram_id, create_user, save_chat_
 from app.repos.wallet_repo import get_wallet_for_user, create_wallet_for_user
 from app.repos.contest_repo import get_contests
 from app.repos.invite_code_repo import validate_and_use_code
+from app.repos.deposit_repo import generate_deposit_reference, get_deposit_address_for_user, subscribe_to_deposit_notifications
 from app.models.enums import UserStatus
 
 logger = logging.getLogger(__name__)
@@ -156,7 +157,7 @@ async def balance_command(message: Message):
 
 @user_router.message(Command("deposit"))
 async def deposit_command(message: Message, state: FSMContext):
-    """Handle /deposit command - show deposit instructions"""
+    """Handle /deposit command - show deposit instructions with per-user address"""
     try:
         async with async_session() as session:
             user = await get_user_by_telegram_id(session, message.from_user.id)
@@ -165,24 +166,35 @@ async def deposit_command(message: Message, state: FSMContext):
                 await message.answer("Please use /start first to register your account.")
                 return
             
+            # Get user-specific deposit information
+            deposit_address = await get_deposit_address_for_user(session, user.id)
+            deposit_reference = await generate_deposit_reference(session, user.id)
+            
             deposit_text = (
                 f"💳 Deposit Instructions\n\n"
                 f"To deposit funds to your CricAlgo wallet:\n\n"
-                f"1. Send USDT to our deposit address\n"
-                f"2. Minimum deposit: 10 USDT\n"
-                f"3. Network: TRC20 (Tron)\n\n"
+                f"📍 Deposit Address:\n"
+                f"`{deposit_address}`\n\n"
+                f"🏷️ Deposit Reference (Memo):\n"
+                f"`{deposit_reference}`\n\n"
+                f"📋 Instructions:\n"
+                f"1. Send USDT to the address above\n"
+                f"2. Use the deposit reference as memo\n"
+                f"3. Minimum deposit: 10 USDT\n"
+                f"4. Network: TRC20 (Tron)\n\n"
                 f"⚠️ Important: Only send USDT (TRC20) to this address!\n"
                 f"Other tokens will be lost permanently.\n\n"
-                f"Your current balance will be updated automatically once the transaction is confirmed."
+                f"Your balance will be updated automatically once confirmed."
             )
             
-            # Add back to balance button
+            # Add notification subscription and other buttons
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔔 Notify me when confirmed", callback_data="subscribe_deposit_notifications")],
                 [InlineKeyboardButton(text="💰 Check Balance", callback_data="balance")],
                 [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
             ])
             
-            await message.answer(deposit_text, reply_markup=keyboard)
+            await message.answer(deposit_text, reply_markup=keyboard, parse_mode="Markdown")
             
     except Exception as e:
         logger.error(f"Error in deposit command: {e}")
@@ -398,3 +410,46 @@ async def start_without_code_callback(callback_query):
         reply_markup=callback_query.message.reply_markup
     )
     await start_command(fake_message)
+
+
+@user_router.callback_query(F.data == "subscribe_deposit_notifications")
+async def subscribe_deposit_notifications_callback(callback_query):
+    """Handle deposit notification subscription"""
+    await callback_query.answer()
+    
+    try:
+        async with async_session() as session:
+            user = await get_user_by_telegram_id(session, callback_query.from_user.id)
+            
+            if not user:
+                await callback_query.message.edit_text("Please use /start first to register your account.")
+                return
+            
+            # Subscribe to deposit notifications
+            success = await subscribe_to_deposit_notifications(
+                session, 
+                user.id, 
+                str(callback_query.message.chat.id)
+            )
+            
+            if success:
+                await callback_query.message.edit_text(
+                    "✅ You will now receive notifications when your deposits are confirmed!\n\n"
+                    "You can check your balance anytime using /balance or the menu below.",
+                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="💰 Check Balance", callback_data="balance")],
+                        [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
+                    ])
+                )
+            else:
+                await callback_query.message.edit_text(
+                    "❌ Failed to subscribe to notifications. Please try again later.",
+                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="🔄 Try Again", callback_data="subscribe_deposit_notifications")],
+                        [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
+                    ])
+                )
+                
+    except Exception as e:
+        logger.error(f"Error in deposit notification subscription: {e}")
+        await callback_query.message.edit_text("Sorry, there was an error. Please try again later.")
