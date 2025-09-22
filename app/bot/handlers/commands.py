@@ -13,9 +13,10 @@ from aiogram.fsm.state import State, StatesGroup
 
 from app.core.config import settings
 from app.db.session import async_session
-from app.repos.user_repo import get_user_by_telegram_id, create_user
+from app.repos.user_repo import get_user_by_telegram_id, create_user, save_chat_id
 from app.repos.wallet_repo import get_wallet_for_user, create_wallet_for_user
 from app.repos.contest_repo import get_contests
+from app.repos.invite_code_repo import validate_and_use_code
 from app.models.enums import UserStatus
 
 logger = logging.getLogger(__name__)
@@ -30,11 +31,20 @@ class UserStates(StatesGroup):
 
 @user_router.message(Command("start"))
 async def start_command(message: Message):
-    """Handle /start command - register user if not exists"""
+    """Handle /start command - register user if not exists, optionally with invite code"""
     try:
+        # Extract invite code from command if present
+        invite_code = None
+        if len(message.text.split()) > 1:
+            invite_code = message.text.split()[1]
+        
         async with async_session() as session:
             # Check if user exists
             user = await get_user_by_telegram_id(session, message.from_user.id)
+            
+            # Save chat ID for notifications
+            if user:
+                await save_chat_id(session, user.id, str(message.chat.id))
             
             if not user:
                 # Create new user
@@ -47,14 +57,40 @@ async def start_command(message: Message):
                 )
                 
                 # Create wallet for user
-                await create_wallet_for_user(session, user.id)
+                wallet = await create_wallet_for_user(session, user.id)
+                
+                # Save chat ID for notifications
+                await save_chat_id(session, user.id, str(message.chat.id))
+                
+                # Handle invite code if provided
+                bonus_text = ""
+                if invite_code:
+                    is_valid, msg = await validate_and_use_code(session, invite_code, str(user.id))
+                    if is_valid:
+                        # Credit bonus to user (e.g., 5 USDT bonus)
+                        from decimal import Decimal
+                        bonus_amount = Decimal("5.00")
+                        wallet.bonus_balance += bonus_amount
+                        await session.commit()
+                        bonus_text = f"\n🎁 Bonus: You received {bonus_amount} {settings.currency} bonus for using invite code!"
+                    else:
+                        # Show error with retry options
+                        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                            [InlineKeyboardButton(text="🔄 Try Again", callback_data=f"start_with_code:{invite_code}")],
+                            [InlineKeyboardButton(text="➡️ Continue Without Code", callback_data="start_without_code")]
+                        ])
+                        await message.answer(
+                            f"❌ {msg}\n\nWould you like to try again or continue without an invite code?",
+                            reply_markup=keyboard
+                        )
+                        return
                 
                 welcome_text = (
                     f"Welcome to CricAlgo! 🏏\n\n"
                     f"Hello {user.username}! Your account has been created successfully.\n"
                     f"Use /balance to check your wallet balance.\n"
                     f"Use /contests to see available contests.\n"
-                    f"Use /help for more commands."
+                    f"Use /help for more commands.{bonus_text}"
                 )
             else:
                 welcome_text = (
@@ -65,7 +101,16 @@ async def start_command(message: Message):
                     f"Use /help for more commands."
                 )
             
-            await message.answer(welcome_text)
+            # Add main menu keyboard
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="💰 Balance", callback_data="balance")],
+                [InlineKeyboardButton(text="💳 Deposit", callback_data="deposit")],
+                [InlineKeyboardButton(text="🏏 Contests", callback_data="contests")],
+                [InlineKeyboardButton(text="💸 Withdraw", callback_data="withdraw")],
+                [InlineKeyboardButton(text="⚙️ Settings", callback_data="settings")]
+            ])
+            
+            await message.answer(welcome_text, reply_markup=keyboard)
             
     except Exception as e:
         logger.error(f"Error in start command: {e}")
@@ -195,15 +240,44 @@ async def contests_command(message: Message):
         await message.answer("Sorry, there was an error retrieving contests. Please try again later.")
 
 
+@user_router.message(Command("menu"))
+async def menu_command(message: Message):
+    """Handle /menu command - show main menu"""
+    try:
+        async with async_session() as session:
+            user = await get_user_by_telegram_id(session, message.from_user.id)
+            
+            if not user:
+                await message.answer("Please use /start first to register your account.")
+                return
+            
+            # Show main menu
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="💰 Balance", callback_data="balance")],
+                [InlineKeyboardButton(text="💳 Deposit", callback_data="deposit")],
+                [InlineKeyboardButton(text="🏏 Contests", callback_data="contests")],
+                [InlineKeyboardButton(text="💸 Withdraw", callback_data="withdraw")],
+                [InlineKeyboardButton(text="⚙️ Settings", callback_data="settings")]
+            ])
+            
+            await message.answer("🏠 Main Menu\n\nChoose an option:", reply_markup=keyboard)
+            
+    except Exception as e:
+        logger.error(f"Error in menu command: {e}")
+        await message.answer("Sorry, there was an error. Please try again later.")
+
+
 @user_router.message(Command("help"))
 async def help_command(message: Message):
     """Handle /help command - show available commands"""
     help_text = (
         "🤖 CricAlgo Bot Commands\n\n"
-        "/start - Register or login to your account\n"
+        "/start [code] - Register or login to your account (optional invite code)\n"
+        "/menu - Show main menu\n"
         "/balance - Check your wallet balance\n"
         "/deposit - Get deposit instructions\n"
         "/contests - View available contests\n"
+        "/withdraw - Request withdrawal\n"
         "/help - Show this help message\n\n"
         "💡 Tips:\n"
         "• Use inline buttons for quick actions\n"
@@ -240,7 +314,9 @@ async def main_menu_callback(callback_query):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💰 Balance", callback_data="balance")],
         [InlineKeyboardButton(text="💳 Deposit", callback_data="deposit")],
-        [InlineKeyboardButton(text="🏏 Contests", callback_data="contests")]
+        [InlineKeyboardButton(text="🏏 Contests", callback_data="contests")],
+        [InlineKeyboardButton(text="💸 Withdraw", callback_data="withdraw")],
+        [InlineKeyboardButton(text="⚙️ Settings", callback_data="settings")]
     ])
     
     await callback_query.message.edit_text(
@@ -283,3 +359,42 @@ async def contests_callback(callback_query):
         reply_markup=callback_query.message.reply_markup
     )
     await contests_command(fake_message)
+
+
+@user_router.callback_query(F.data.startswith("start_with_code:"))
+async def start_with_code_callback(callback_query):
+    """Handle start with invite code retry"""
+    await callback_query.answer()
+    invite_code = callback_query.data.split(":", 1)[1]
+    
+    # Create a fake message with the invite code
+    from aiogram.types import Message
+    fake_message = Message(
+        message_id=callback_query.message.message_id,
+        from_user=callback_query.from_user,
+        chat=callback_query.message.chat,
+        date=callback_query.message.date,
+        content_type=callback_query.message.content_type,
+        text=f"/start {invite_code}",
+        reply_markup=callback_query.message.reply_markup
+    )
+    await start_command(fake_message)
+
+
+@user_router.callback_query(F.data == "start_without_code")
+async def start_without_code_callback(callback_query):
+    """Handle start without invite code"""
+    await callback_query.answer()
+    
+    # Create a fake message without invite code
+    from aiogram.types import Message
+    fake_message = Message(
+        message_id=callback_query.message.message_id,
+        from_user=callback_query.from_user,
+        chat=callback_query.message.chat,
+        date=callback_query.message.date,
+        content_type=callback_query.message.content_type,
+        text="/start",
+        reply_markup=callback_query.message.reply_markup
+    )
+    await start_command(fake_message)
