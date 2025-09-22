@@ -2,8 +2,8 @@
 Contest model matching the DDL schema
 """
 
-from sqlalchemy import Column, String, Numeric, DateTime, Integer
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy import Column, String, Numeric, DateTime, Integer, JSON
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from app.db.base import Base
 import sqlalchemy as sa
@@ -21,7 +21,7 @@ class Contest(Base):
     entry_fee = Column(Numeric(30, 8), nullable=False, default=0)
     currency = Column(String(16), nullable=False, default='USDT')
     max_players = Column(Integer, nullable=True)
-    prize_structure = Column(JSONB, nullable=False, default={})
+    prize_structure = Column(JSON, nullable=False, default={})
     commission_pct = Column(Numeric(5, 2), nullable=False, default=0)
     join_cutoff = Column(DateTime(timezone=True), nullable=True)
     status = Column(sa.Enum('open','closed','settled','cancelled', name='contest_status', create_type=False), nullable=False, default='open')

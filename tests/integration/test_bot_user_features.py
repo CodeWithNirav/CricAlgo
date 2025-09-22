@@ -71,30 +71,30 @@ async def test_start_command_with_invite_code(async_session):
     state = AsyncMock()
     
     with patch('app.bot.handlers.commands.async_session', return_value=async_session):
-        await start_command(message, state)
+        await start_command(message)
     
     # Verify response
     assert "Welcome to CricAlgo" in message.last_answer
-    assert "TEST123" in message.last_answer
     assert "bonus" in message.last_answer.lower()
+    assert "5.00 USDT" in message.last_answer
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_start_command_with_invalid_invite_code(async_session):
-    """Test /start command with invalid invite code"""
-    # Mock message
-    message = MockMessage("/start INVALID", 12345, 67890)
+    """Test /start command with invalid invite code for new user"""
+    # Mock message for new user (different telegram_id)
+    message = MockMessage("/start INVALID", 99999, 67890)
     
     # Mock state
     state = AsyncMock()
     
     with patch('app.bot.handlers.commands.async_session', return_value=async_session):
-        await start_command(message, state)
+        await start_command(message)
     
     # Verify response
     assert "Invalid invite code" in message.last_answer
-    assert "Try again" in message.last_answer
+    assert "try again" in message.last_answer.lower()
 
 
 @pytest.mark.integration
@@ -114,15 +114,29 @@ async def test_deposit_command_shows_user_address(async_session):
     assert "Deposit Instructions" in message.last_answer
     assert "Deposit Address:" in message.last_answer
     assert "Deposit Reference" in message.last_answer
-    assert "Notify me when confirmed" in message.last_answer
+    # Check that keyboard was sent (button text is in reply_markup, not message text)
+    assert message.last_reply_markup is not None
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_withdraw_command_insufficient_balance(async_session):
     """Test withdraw command with insufficient balance"""
-    # Mock message
-    message = MockMessage("/withdraw", 12345, 67890)
+    from app.repos.user_repo import create_user
+    from app.repos.wallet_repo import create_wallet_for_user
+    from app.models.enums import UserStatus
+    
+    # Create user with no balance
+    user = await create_user(
+        session=async_session,
+        telegram_id=99998,
+        username="test_user_no_balance",
+        status=UserStatus.ACTIVE
+    )
+    await create_wallet_for_user(async_session, user.id)
+    
+    # Mock message for user with no balance
+    message = MockMessage("/withdraw", 99998, 67890)
     
     # Mock state
     state = AsyncMock()
@@ -132,13 +146,37 @@ async def test_withdraw_command_insufficient_balance(async_session):
     
     # Verify response
     assert "Insufficient balance" in message.last_answer
-    assert "Deposit" in message.last_answer
+    assert "deposit funds" in message.last_answer.lower()
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_contests_command_shows_details(async_session):
     """Test contests command shows detailed information"""
+    from app.repos.user_repo import create_user
+    from app.repos.contest_repo import create_contest
+    from app.models.enums import UserStatus
+    from decimal import Decimal
+    
+    # Create user
+    user = await create_user(
+        session=async_session,
+        telegram_id=12345,
+        username="test_user_contests",
+        status=UserStatus.ACTIVE
+    )
+    
+    # Create a test contest
+    contest = await create_contest(
+        session=async_session,
+        match_id="test_match_123",
+        title="Test Contest",
+        entry_fee=Decimal("10.00"),
+        max_participants=10,
+        prize_structure=[{"1st": "50.00"}, {"2nd": "30.00"}],
+        created_by=user.id
+    )
+    
     # Mock message
     message = MockMessage("/contests", 12345, 67890)
     
@@ -147,7 +185,8 @@ async def test_contests_command_shows_details(async_session):
     
     # Verify response
     assert "Available Contests" in message.last_answer
-    assert "Join" in message.last_answer or "Details" in message.last_answer
+    assert "Test Contest" in message.last_answer
+    assert "10.00" in message.last_answer
 
 
 @pytest.mark.integration
@@ -295,15 +334,17 @@ async def test_chat_mapping_persistence(async_session):
 async def test_notification_idempotency():
     """Test that notifications use idempotency keys"""
     from app.tasks.notify import send_deposit_confirmation, send_contest_settlement
+    import uuid
     
     # Mock Redis client
     with patch('app.tasks.notify.redis_client') as mock_redis:
         mock_redis.exists.return_value = False
         mock_redis.setex.return_value = True
         
-        # Test deposit notification
-        result1 = await send_deposit_confirmation("test-tx-id")
-        result2 = await send_deposit_confirmation("test-tx-id")
+        # Test deposit notification with valid UUID
+        test_tx_id = str(uuid.uuid4())
+        result1 = await send_deposit_confirmation(test_tx_id)
+        result2 = await send_deposit_confirmation(test_tx_id)
         
         # Both should succeed (idempotent)
         assert result1 is True

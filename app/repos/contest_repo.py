@@ -108,7 +108,11 @@ async def get_contests(
     query = select(Contest).order_by(desc(Contest.created_at))
     
     if status:
-        query = query.where(Contest.status == ContestStatus(status))
+        # Handle both string and enum status values
+        if isinstance(status, str):
+            query = query.where(Contest.status == status)
+        else:
+            query = query.where(Contest.status == ContestStatus(status))
     
     query = query.limit(limit).offset(offset)
     

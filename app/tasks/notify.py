@@ -11,7 +11,7 @@ from app.db.session import async_session
 from app.repos.deposit_repo import get_user_chat_id
 from app.repos.user_repo import get_user_by_id
 from app.repos.contest_repo import get_contest_by_id
-from app.repos.contest_entry_repo import get_contest_entries_by_contest
+from app.repos.contest_entry_repo import get_contest_entries
 from app.models.enums import ContestStatus
 
 logger = logging.getLogger(__name__)
