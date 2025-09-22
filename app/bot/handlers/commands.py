@@ -18,6 +18,7 @@ from app.repos.wallet_repo import get_wallet_for_user, create_wallet_for_user
 from app.repos.contest_repo import get_contests
 from app.repos.invite_code_repo import validate_and_use_code
 from app.repos.deposit_repo import generate_deposit_reference, get_deposit_address_for_user, subscribe_to_deposit_notifications
+from app.repos.withdrawal_repo import create_withdrawal, get_withdrawal
 from app.models.enums import UserStatus
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,8 @@ user_router = Router()
 # States for user interactions
 class UserStates(StatesGroup):
     waiting_for_deposit_amount = State()
+    waiting_for_withdrawal_amount = State()
+    waiting_for_withdrawal_address = State()
 
 
 @user_router.message(Command("start"))
@@ -252,6 +255,81 @@ async def contests_command(message: Message):
         await message.answer("Sorry, there was an error retrieving contests. Please try again later.")
 
 
+@user_router.message(Command("withdraw"))
+async def withdraw_command(message: Message, state: FSMContext):
+    """Handle /withdraw command - start withdrawal process"""
+    try:
+        async with async_session() as session:
+            user = await get_user_by_telegram_id(session, message.from_user.id)
+            
+            if not user:
+                await message.answer("Please use /start first to register your account.")
+                return
+            
+            # Get user's wallet
+            wallet = await get_wallet_for_user(session, user.id)
+            if not wallet:
+                wallet = await create_wallet_for_user(session, user.id)
+            
+            # Check if user has sufficient balance
+            total_balance = wallet.deposit_balance + wallet.winning_balance + wallet.bonus_balance
+            if total_balance <= 0:
+                await message.answer(
+                    "❌ Insufficient balance for withdrawal.\n\n"
+                    "You need to deposit funds first before you can withdraw.",
+                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="💳 Deposit", callback_data="deposit")],
+                        [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
+                    ])
+                )
+                return
+            
+            # Show withdrawal amount options
+            withdraw_text = (
+                f"💸 Withdrawal Request\n\n"
+                f"💰 Available Balance: {total_balance} {settings.currency}\n"
+                f"💳 Deposit Balance: {wallet.deposit_balance} {settings.currency}\n"
+                f"🏆 Winning Balance: {wallet.winning_balance} {settings.currency}\n"
+                f"🎁 Bonus Balance: {wallet.bonus_balance} {settings.currency}\n\n"
+                f"Choose withdrawal amount:"
+            )
+            
+            # Create amount selection keyboard
+            keyboard_buttons = []
+            
+            # Quick amount options
+            quick_amounts = [10, 25, 50, 100]
+            for amount in quick_amounts:
+                if amount <= total_balance:
+                    keyboard_buttons.append([
+                        InlineKeyboardButton(
+                            text=f"${amount} {settings.currency}",
+                            callback_data=f"withdraw_amount:{amount}"
+                        )
+                    ])
+            
+            # Custom amount option
+            keyboard_buttons.append([
+                InlineKeyboardButton(
+                    text="💰 Custom Amount",
+                    callback_data="withdraw_custom_amount"
+                )
+            ])
+            
+            # Back to menu
+            keyboard_buttons.append([
+                InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")
+            ])
+            
+            keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+            
+            await message.answer(withdraw_text, reply_markup=keyboard)
+            
+    except Exception as e:
+        logger.error(f"Error in withdraw command: {e}")
+        await message.answer("Sorry, there was an error. Please try again later.")
+
+
 @user_router.message(Command("menu"))
 async def menu_command(message: Message):
     """Handle /menu command - show main menu"""
@@ -452,4 +530,310 @@ async def subscribe_deposit_notifications_callback(callback_query):
                 
     except Exception as e:
         logger.error(f"Error in deposit notification subscription: {e}")
+        await callback_query.message.edit_text("Sorry, there was an error. Please try again later.")
+
+
+@user_router.callback_query(F.data.startswith("withdraw_amount:"))
+async def withdraw_amount_callback(callback_query, state: FSMContext):
+    """Handle withdrawal amount selection"""
+    await callback_query.answer()
+    
+    try:
+        amount = float(callback_query.data.split(":", 1)[1])
+        
+        # Store amount in state
+        await state.update_data(withdrawal_amount=amount)
+        await state.set_state(UserStates.waiting_for_withdrawal_address)
+        
+        await callback_query.message.edit_text(
+            f"💸 Withdrawal Amount: {amount} {settings.currency}\n\n"
+            f"Please enter the destination address where you want to receive the funds:\n\n"
+            f"⚠️ Make sure the address is correct - withdrawals cannot be reversed!",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="❌ Cancel", callback_data="withdraw_cancel")]
+            ])
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in withdraw amount callback: {e}")
+        await callback_query.message.edit_text("Sorry, there was an error. Please try again.")
+
+
+@user_router.callback_query(F.data == "withdraw_custom_amount")
+async def withdraw_custom_amount_callback(callback_query, state: FSMContext):
+    """Handle custom withdrawal amount"""
+    await callback_query.answer()
+    
+    await state.set_state(UserStates.waiting_for_withdrawal_amount)
+    
+    await callback_query.message.edit_text(
+        f"💰 Custom Withdrawal Amount\n\n"
+        f"Please enter the amount you want to withdraw (in {settings.currency}):\n\n"
+        f"Example: 25.50",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="❌ Cancel", callback_data="withdraw_cancel")]
+        ])
+    )
+
+
+@user_router.message(UserStates.waiting_for_withdrawal_amount)
+async def process_withdrawal_amount(message: Message, state: FSMContext):
+    """Process custom withdrawal amount input"""
+    try:
+        amount = float(message.text)
+        
+        if amount <= 0:
+            await message.answer("❌ Amount must be greater than 0. Please try again:")
+            return
+        
+        # Store amount in state
+        await state.update_data(withdrawal_amount=amount)
+        await state.set_state(UserStates.waiting_for_withdrawal_address)
+        
+        await message.answer(
+            f"💸 Withdrawal Amount: {amount} {settings.currency}\n\n"
+            f"Please enter the destination address where you want to receive the funds:\n\n"
+            f"⚠️ Make sure the address is correct - withdrawals cannot be reversed!",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="❌ Cancel", callback_data="withdraw_cancel")]
+            ])
+        )
+        
+    except ValueError:
+        await message.answer("❌ Invalid amount. Please enter a valid number:")
+    except Exception as e:
+        logger.error(f"Error processing withdrawal amount: {e}")
+        await message.answer("Sorry, there was an error. Please try again.")
+
+
+@user_router.message(UserStates.waiting_for_withdrawal_address)
+async def process_withdrawal_address(message: Message, state: FSMContext):
+    """Process withdrawal address input"""
+    try:
+        address = message.text.strip()
+        
+        if len(address) < 10:  # Basic validation
+            await message.answer("❌ Address seems too short. Please enter a valid address:")
+            return
+        
+        # Get amount from state
+        data = await state.get_data()
+        amount = data.get("withdrawal_amount")
+        
+        if not amount:
+            await message.answer("❌ Error: Amount not found. Please start over.")
+            await state.clear()
+            return
+        
+        # Create withdrawal request
+        async with async_session() as session:
+            user = await get_user_by_telegram_id(session, message.from_user.id)
+            
+            if not user:
+                await message.answer("❌ User not found. Please use /start first.")
+                await state.clear()
+                return
+            
+            # Check balance again
+            wallet = await get_wallet_for_user(session, user.id)
+            total_balance = wallet.deposit_balance + wallet.winning_balance + wallet.bonus_balance
+            
+            if amount > total_balance:
+                await message.answer(
+                    f"❌ Insufficient balance. You have {total_balance} {settings.currency} available.",
+                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="🔄 Try Again", callback_data="withdraw")],
+                        [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
+                    ])
+                )
+                await state.clear()
+                return
+            
+            # Create withdrawal request
+            withdrawal = await create_withdrawal(
+                session,
+                user.telegram_id,
+                amount,
+                address
+            )
+            
+            await state.clear()
+            
+            # Show confirmation
+            await message.answer(
+                f"✅ Withdrawal Request Created!\n\n"
+                f"💰 Amount: {amount} {settings.currency}\n"
+                f"📍 Address: {address}\n"
+                f"📋 ID: {withdrawal['id']}\n"
+                f"📊 Status: Pending\n\n"
+                f"Your withdrawal request has been submitted for approval. "
+                f"You will be notified when it's processed.",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="📊 View Status", callback_data=f"withdrawal_status:{withdrawal['id']}")],
+                    [InlineKeyboardButton(text="❌ Cancel Request", callback_data=f"withdrawal_cancel:{withdrawal['id']}")],
+                    [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
+                ])
+            )
+            
+    except Exception as e:
+        logger.error(f"Error processing withdrawal address: {e}")
+        await message.answer("Sorry, there was an error. Please try again.")
+        await state.clear()
+
+
+@user_router.callback_query(F.data == "withdraw_cancel")
+async def withdraw_cancel_callback(callback_query, state: FSMContext):
+    """Handle withdrawal cancellation"""
+    await callback_query.answer()
+    
+    await state.clear()
+    
+    await callback_query.message.edit_text(
+        "❌ Withdrawal cancelled.\n\n"
+        "You can start a new withdrawal anytime using /withdraw",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="💸 New Withdrawal", callback_data="withdraw")],
+            [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
+        ])
+    )
+
+
+@user_router.callback_query(F.data.startswith("withdrawal_status:"))
+async def withdrawal_status_callback(callback_query):
+    """Handle withdrawal status check"""
+    await callback_query.answer()
+    
+    try:
+        withdrawal_id = callback_query.data.split(":", 1)[1]
+        
+        async with async_session() as session:
+            withdrawal = await get_withdrawal(session, withdrawal_id)
+            
+            if not withdrawal:
+                await callback_query.message.edit_text(
+                    "❌ Withdrawal not found.",
+                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
+                    ])
+                )
+                return
+            
+            status_emoji = {
+                "pending": "⏳",
+                "approved": "✅",
+                "rejected": "❌",
+                "completed": "🎉"
+            }.get(withdrawal.status, "❓")
+            
+            await callback_query.message.edit_text(
+                f"📊 Withdrawal Status\n\n"
+                f"💰 Amount: {withdrawal.amount} {settings.currency}\n"
+                f"📍 Address: {withdrawal.address}\n"
+                f"📋 ID: {withdrawal.id}\n"
+                f"📊 Status: {status_emoji} {withdrawal.status.title()}\n\n"
+                f"Status updates will be sent to you automatically.",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🔄 Refresh", callback_data=f"withdrawal_status:{withdrawal_id}")],
+                    [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
+                ])
+            )
+            
+    except Exception as e:
+        logger.error(f"Error checking withdrawal status: {e}")
+        await callback_query.message.edit_text("Sorry, there was an error. Please try again.")
+
+
+@user_router.callback_query(F.data.startswith("withdrawal_cancel:"))
+async def withdrawal_cancel_request_callback(callback_query):
+    """Handle withdrawal request cancellation"""
+    await callback_query.answer()
+    
+    try:
+        withdrawal_id = callback_query.data.split(":", 1)[1]
+        
+        async with async_session() as session:
+            withdrawal = await get_withdrawal(session, withdrawal_id)
+            
+            if not withdrawal:
+                await callback_query.message.edit_text("❌ Withdrawal not found.")
+                return
+            
+            if withdrawal.status != "pending":
+                await callback_query.message.edit_text(
+                    f"❌ Cannot cancel withdrawal. Status: {withdrawal.status.title()}"
+                )
+                return
+            
+            # Update withdrawal status to cancelled
+            withdrawal.status = "cancelled"
+            await session.commit()
+            
+            await callback_query.message.edit_text(
+                f"✅ Withdrawal Cancelled\n\n"
+                f"Your withdrawal request has been cancelled successfully.",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="💸 New Withdrawal", callback_data="withdraw")],
+                    [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
+                ])
+            )
+            
+    except Exception as e:
+        logger.error(f"Error cancelling withdrawal: {e}")
+        await callback_query.message.edit_text("Sorry, there was an error. Please try again.")
+
+
+@user_router.callback_query(F.data == "withdraw")
+async def withdraw_callback(callback_query, state: FSMContext):
+    """Handle withdraw callback from menu"""
+    await callback_query.answer()
+    
+    # Create a fake message object
+    from aiogram.types import Message
+    fake_message = Message(
+        message_id=callback_query.message.message_id,
+        from_user=callback_query.from_user,
+        chat=callback_query.message.chat,
+        date=callback_query.message.date,
+        content_type=callback_query.message.content_type,
+        text="/withdraw",
+        reply_markup=callback_query.message.reply_markup
+    )
+    await withdraw_command(fake_message, state)
+
+
+@user_router.callback_query(F.data == "settings")
+async def settings_callback(callback_query):
+    """Handle settings callback"""
+    await callback_query.answer()
+    
+    try:
+        async with async_session() as session:
+            user = await get_user_by_telegram_id(session, callback_query.from_user.id)
+            
+            if not user:
+                await callback_query.message.edit_text("Please use /start first to register your account.")
+                return
+            
+            settings_text = (
+                f"⚙️ Settings\n\n"
+                f"👤 Username: {user.username}\n"
+                f"🆔 User ID: {user.id}\n"
+                f"📊 Status: {user.status.title()}\n"
+                f"📅 Member since: {user.created_at.strftime('%Y-%m-%d')}\n\n"
+                f"🔔 Notifications: Enabled\n"
+                f"💬 Language: English\n\n"
+                f"Use the buttons below to manage your account:"
+            )
+            
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔔 Notification Settings", callback_data="notification_settings")],
+                [InlineKeyboardButton(text="📊 View Profile", callback_data="view_profile")],
+                [InlineKeyboardButton(text="❓ Help & Support", callback_data="help_support")],
+                [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
+            ])
+            
+            await callback_query.message.edit_text(settings_text, reply_markup=keyboard)
+            
+    except Exception as e:
+        logger.error(f"Error in settings callback: {e}")
         await callback_query.message.edit_text("Sorry, there was an error. Please try again later.")
