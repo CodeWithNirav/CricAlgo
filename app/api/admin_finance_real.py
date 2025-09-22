@@ -267,6 +267,16 @@ async def approve_withdrawal(
         
         await db.commit()
         
+        # Send notification to user
+        try:
+            from app.tasks.notify import send_withdrawal_approval
+            await send_withdrawal_approval(withdrawal_id)
+        except Exception as e:
+            # Log error but don't fail the approval
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to send withdrawal approval notification for {withdrawal_id}: {e}")
+        
         return {"success": True, "message": "Withdrawal approved successfully"}
         
     except Exception as e:

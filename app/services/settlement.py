@@ -191,6 +191,15 @@ async def settle_contest(
             
             logger.info(f"Successfully settled contest {contest_id} with {len(payouts)} payouts totaling {total_payouts}")
             
+            # Send notifications to all participants
+            try:
+                from app.tasks.notify import send_contest_settlement
+                await send_contest_settlement(str(contest_id))
+                logger.info(f"Sent settlement notifications for contest {contest_id}")
+            except Exception as e:
+                logger.error(f"Failed to send settlement notifications for contest {contest_id}: {e}")
+                # Don't fail the settlement if notifications fail
+            
             return {
                 "success": True,
                 "contest_id": str(contest_id),
