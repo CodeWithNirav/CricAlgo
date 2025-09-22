@@ -127,44 +127,40 @@ async def get_current_user(
 
 
 async def get_current_admin(
-    current_user = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
     session: AsyncSession = Depends(get_db)
 ):
     """Get current authenticated admin user."""
-    from app.repos.admin_repo import is_admin_user
+    from app.repos.admin_repo import is_admin_user, get_admin_by_id
     import os
     
-    # Debug logging for admin check
-    debug_logger.debug(f"Checking admin status for user: {current_user.username} (ID: {current_user.id})")
+    token = credentials.credentials
+    payload = verify_token(token, "admin")  # Check for admin token type
     
-    # Check if user is admin via database
-    is_admin_db = await is_admin_user(session, current_user.id)
-    debug_logger.debug(f"Database admin check result: {is_admin_db}")
+    # Debug logging for admin check
+    debug_logger.debug(f"Admin JWT Claims: {payload}")
+    
+    admin_id = payload.get("sub")
+    if admin_id is None:
+        debug_logger.error("Admin JWT token missing 'sub' claim")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate admin credentials"
+        )
+    
+    # Get admin from database
+    admin = await get_admin_by_id(session, UUID(admin_id))
+    if admin is None:
+        debug_logger.error(f"Admin not found for ID: {admin_id}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Admin not found"
+        )
     
     # TOTP bypass for testing (gated behind environment variable)
     if os.getenv("ENABLE_TEST_TOTP_BYPASS", "false").lower() == "true":
-        debug_logger.warning(f"TOTP bypass enabled for testing - granting admin access to {current_user.username}")
-        return current_user
+        debug_logger.warning(f"TOTP bypass enabled for testing - granting admin access to {admin.username}")
+        return admin
     
-    # Fallback: Check JWT token claims for admin flag (if present)
-    token = None
-    try:
-        from fastapi import Request
-        # Try to get token from request context
-        # This is a fallback mechanism
-        debug_logger.debug("Checking JWT token for admin claims")
-    except:
-        pass
-    
-    if not is_admin_db:
-        # Check if token has admin claim as fallback
-        debug_logger.warning(f"User {current_user.username} not found in admin table, checking token claims")
-        # For now, we'll be strict and require DB admin record
-        debug_logger.error(f"Admin access denied for user: {current_user.username}")
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
-        )
-    
-    debug_logger.debug(f"Admin authentication successful for: {current_user.username}")
-    return current_user
+    debug_logger.debug(f"Admin authentication successful for: {admin.username}")
+    return admin

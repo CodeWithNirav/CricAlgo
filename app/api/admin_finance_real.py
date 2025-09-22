@@ -8,11 +8,11 @@ from app.models.transaction import Transaction
 from app.models.user import User
 from app.models.audit_log import AuditLog
 from app.models.admin import Admin
-import csv, io
+import csv
+import io
+from decimal import Decimal
 
-router = APIRouter(prefix="/api/v1/admin", tags=["admin_finance"])
-
-# Matches endpoints are handled by admin_matches_contests.py
+router = APIRouter(prefix="/api/v1/admin", tags=["admin_finance_real"])
 
 @router.get("/deposits")
 async def list_deposits(
@@ -26,7 +26,7 @@ async def list_deposits(
         stmt = select(Transaction).where(
             and_(
                 Transaction.tx_type == "deposit",
-                Transaction.tx_metadata.op('->>')('status') == status
+                Transaction.tx_metadata["status"].astext == status
             )
         ).order_by(Transaction.created_at.desc())
         
@@ -85,7 +85,7 @@ async def list_withdrawals(
         stmt = select(Transaction).where(
             and_(
                 Transaction.tx_type == "withdrawal",
-                Transaction.tx_metadata.op('->>')('status') == status
+                Transaction.tx_metadata["status"].astext == status
             )
         ).order_by(Transaction.created_at.desc())
         
@@ -172,13 +172,12 @@ async def approve_deposit(
     """Approve a deposit"""
     try:
         # Update transaction status in metadata
-        from sqlalchemy import text
         stmt = update(Transaction).where(
             and_(
                 Transaction.id == deposit_id,
                 Transaction.tx_type == "deposit"
             )
-        ).values(tx_metadata=text("metadata || '{\"status\": \"confirmed\"}'::jsonb"))
+        ).values(tx_metadata=Transaction.tx_metadata.op('||')({"status": "confirmed"}))
         
         await db.execute(stmt)
         
@@ -192,7 +191,7 @@ async def approve_deposit(
         
         await db.commit()
         
-        return {"success": True, "message": f"Deposit {deposit_id} approved successfully!"}
+        return {"success": True, "message": "Deposit approved successfully"}
         
     except Exception as e:
         await db.rollback()
@@ -211,13 +210,12 @@ async def reject_deposit(
     """Reject a deposit"""
     try:
         # Update transaction status in metadata
-        from sqlalchemy import text
         stmt = update(Transaction).where(
             and_(
                 Transaction.id == deposit_id,
                 Transaction.tx_type == "deposit"
             )
-        ).values(tx_metadata=text("metadata || '{\"status\": \"rejected\"}'::jsonb"))
+        ).values(tx_metadata=Transaction.tx_metadata.op('||')({"status": "rejected"}))
         
         await db.execute(stmt)
         
@@ -231,7 +229,7 @@ async def reject_deposit(
         
         await db.commit()
         
-        return {"success": True, "message": f"Deposit {deposit_id} rejected successfully!"}
+        return {"success": True, "message": "Deposit rejected successfully"}
         
     except Exception as e:
         await db.rollback()
@@ -250,13 +248,12 @@ async def approve_withdrawal(
     """Approve a withdrawal"""
     try:
         # Update transaction status in metadata
-        from sqlalchemy import text
         stmt = update(Transaction).where(
             and_(
                 Transaction.id == withdrawal_id,
                 Transaction.tx_type == "withdrawal"
             )
-        ).values(tx_metadata=text("metadata || '{\"status\": \"confirmed\"}'::jsonb"))
+        ).values(tx_metadata=Transaction.tx_metadata.op('||')({"status": "confirmed"}))
         
         await db.execute(stmt)
         
@@ -270,7 +267,7 @@ async def approve_withdrawal(
         
         await db.commit()
         
-        return {"success": True, "message": f"Withdrawal {withdrawal_id} approved successfully!"}
+        return {"success": True, "message": "Withdrawal approved successfully"}
         
     except Exception as e:
         await db.rollback()
@@ -289,13 +286,12 @@ async def reject_withdrawal(
     """Reject a withdrawal"""
     try:
         # Update transaction status in metadata
-        from sqlalchemy import text
         stmt = update(Transaction).where(
             and_(
                 Transaction.id == withdrawal_id,
                 Transaction.tx_type == "withdrawal"
             )
-        ).values(tx_metadata=text("metadata || '{\"status\": \"rejected\"}'::jsonb"))
+        ).values(tx_metadata=Transaction.tx_metadata.op('||')({"status": "rejected"}))
         
         await db.execute(stmt)
         
@@ -309,7 +305,7 @@ async def reject_withdrawal(
         
         await db.commit()
         
-        return {"success": True, "message": f"Withdrawal {withdrawal_id} rejected successfully!"}
+        return {"success": True, "message": "Withdrawal rejected successfully"}
         
     except Exception as e:
         await db.rollback()
@@ -317,19 +313,3 @@ async def reject_withdrawal(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
             detail={"error": f"Failed to reject withdrawal: {str(e)}"}
         )
-
-# Keep the old fake endpoints for backward compatibility but mark them as deprecated
-@router.get("/audit/export")
-async def export_audit_logs():
-    """Export audit logs as CSV - simplified version"""
-    # Create a simple CSV
-    csv_content = "timestamp,action,details\n"
-    csv_content += "2024-01-15T10:00:00Z,create_match,\"Created match: India vs Australia\"\n"
-    csv_content += "2024-01-15T11:00:00Z,approve_deposit,\"Approved deposit: 100 USDT\"\n"
-    csv_content += "2024-01-15T12:00:00Z,settle_contest,\"Settled contest: High Roller Contest\"\n"
-    
-    return StreamingResponse(
-        io.BytesIO(csv_content.encode()),
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=audit_logs.csv"}
-    )

@@ -23,7 +23,7 @@ class Transaction(Base):
     related_entity = Column(String(64), nullable=True)
     related_id = Column(UUID(as_uuid=True), nullable=True)
     tx_metadata = Column('metadata', JSON, nullable=True)
-    status = Column(sa.Enum('pending','confirmed','processed','rejected', name='transaction_status', create_type=False), nullable=False, default='pending')
+    # Note: status column doesn't exist in actual database schema
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     def __repr__(self):
@@ -40,7 +40,7 @@ class Transaction(Base):
             "related_id": str(self.related_id) if self.related_id else None,
             "tx_metadata": self.tx_metadata,
             "created_at": self.created_at.isoformat() if self.created_at else None,
-            "status": self.status if self.status else 'pending',
+            "status": "pending",  # Default status since no status column exists
             "tx_hash": self.tx_metadata.get('tx_hash', '') if self.tx_metadata else '',
             "telegram_id": self.tx_metadata.get('telegram_id', '') if self.tx_metadata else '',
             "username": self.tx_metadata.get('username', '') if self.tx_metadata else ''

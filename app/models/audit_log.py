@@ -16,7 +16,6 @@ class AuditLog(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     admin_id = Column(UUID(as_uuid=True), nullable=True)
-    actor = Column(String(128), nullable=True)  # For web_admin or other actors
     action = Column(String(128), nullable=False)
     details = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -28,7 +27,6 @@ class AuditLog(Base):
         return {
             "id": str(self.id),
             "admin_id": str(self.admin_id) if self.admin_id else None,
-            "actor": self.actor,
             "action": self.action,
             "details": self.details,
             "created_at": self.created_at.isoformat() if self.created_at else None

@@ -1,5 +1,0 @@
-app\api\v1\auth.py:197:18: F821 undefined name 'get_user_by_id'
-    user = await get_user_by_id(session, uuid4(user_id))
-                 ^
-1     F821 undefined name 'get_user_by_id'
-1

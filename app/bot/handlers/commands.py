@@ -12,7 +12,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 from app.core.config import settings
-from app.db.session import get_async_session
+from app.db.session import async_session
 from app.repos.user_repo import get_user_by_telegram_id, create_user
 from app.repos.wallet_repo import get_wallet_for_user, create_wallet_for_user
 from app.repos.contest_repo import get_contests
@@ -32,7 +32,7 @@ class UserStates(StatesGroup):
 async def start_command(message: Message):
     """Handle /start command - register user if not exists"""
     try:
-        async for session in get_async_session():
+        async with async_session() as session:
             # Check if user exists
             user = await get_user_by_telegram_id(session, message.from_user.id)
             
@@ -66,7 +66,6 @@ async def start_command(message: Message):
                 )
             
             await message.answer(welcome_text)
-            break
             
     except Exception as e:
         logger.error(f"Error in start command: {e}")
@@ -77,7 +76,7 @@ async def start_command(message: Message):
 async def balance_command(message: Message):
     """Handle /balance command - show user's wallet balance"""
     try:
-        async for session in get_async_session():
+        async with async_session() as session:
             user = await get_user_by_telegram_id(session, message.from_user.id)
             
             if not user:
@@ -104,7 +103,6 @@ async def balance_command(message: Message):
             ])
             
             await message.answer(balance_text, reply_markup=keyboard)
-            break
             
     except Exception as e:
         logger.error(f"Error in balance command: {e}")
@@ -115,7 +113,7 @@ async def balance_command(message: Message):
 async def deposit_command(message: Message, state: FSMContext):
     """Handle /deposit command - show deposit instructions"""
     try:
-        async for session in get_async_session():
+        async with async_session() as session:
             user = await get_user_by_telegram_id(session, message.from_user.id)
             
             if not user:
@@ -140,7 +138,6 @@ async def deposit_command(message: Message, state: FSMContext):
             ])
             
             await message.answer(deposit_text, reply_markup=keyboard)
-            break
             
     except Exception as e:
         logger.error(f"Error in deposit command: {e}")
@@ -151,7 +148,7 @@ async def deposit_command(message: Message, state: FSMContext):
 async def contests_command(message: Message):
     """Handle /contests command - show available contests"""
     try:
-        async for session in get_async_session():
+        async with async_session() as session:
             user = await get_user_by_telegram_id(session, message.from_user.id)
             
             if not user:
@@ -192,7 +189,6 @@ async def contests_command(message: Message):
             keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
             
             await message.answer(contests_text, reply_markup=keyboard)
-            break
             
     except Exception as e:
         logger.error(f"Error in contests command: {e}")

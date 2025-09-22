@@ -17,8 +17,8 @@ export default function Users() {
         setUsers(data);
         setError(null);
       } else {
-        const txt = await r.text().catch(() => null);
-        setError(`Failed to search users: ${r.status} ${txt || ''}`);
+        const errorData = await r.json().catch(() => null);
+        setError(`Failed to search users: ${r.status} ${errorData?.detail?.error || errorData?.detail || ''}`);
         return;
       }
     } catch (err) {
@@ -41,7 +41,8 @@ export default function Users() {
       if (r.ok) {
         await search(); // Reload the list
       } else {
-        setError("Failed to freeze user");
+        const errorData = await r.json().catch(() => null);
+        setError(`Failed to freeze user: ${errorData?.detail?.error || errorData?.detail || ''}`);
       }
     } catch (err) {
       setError("Error freezing user: " + err.message);
@@ -60,7 +61,8 @@ export default function Users() {
       if (r.ok) {
         await search(); // Reload the list
       } else {
-        setError("Failed to unfreeze user");
+        const errorData = await r.json().catch(() => null);
+        setError(`Failed to unfreeze user: ${errorData?.detail?.error || errorData?.detail || ''}`);
       }
     } catch (err) {
       setError("Error unfreezing user: " + err.message);

@@ -16,6 +16,7 @@ from app.repos.transaction_repo import get_transaction_by_id, update_transaction
 from app.repos.audit_log_repo import create_audit_log, get_audit_logs
 from app.tasks.tasks import process_withdrawal
 from app.models.user import User
+from app.models.admin import Admin
 from app.repos.admin_repo import get_admin_by_username
 from datetime import timedelta
 
@@ -114,7 +115,7 @@ async def get_users_list(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     status_filter: Optional[str] = Query(None, description="Filter by user status"),
-    current_admin: User = Depends(get_current_admin),
+    current_admin: Admin = Depends(get_current_admin),
     session: AsyncSession = Depends(get_db)
 ):
     """
@@ -154,7 +155,7 @@ async def get_users_list(
 @router.get("/users/{user_id}")
 async def get_user_details(
     user_id: str,
-    current_admin: User = Depends(get_current_admin),
+    current_admin: Admin = Depends(get_current_admin),
     session: AsyncSession = Depends(get_db)
 ):
     """
@@ -216,7 +217,7 @@ async def get_user_details(
 @router.post("/transactions/{tx_id}/approve", response_model=TransactionApprovalResponse)
 async def approve_transaction(
     tx_id: str,
-    current_admin: User = Depends(get_current_admin),
+    current_admin: Admin = Depends(get_current_admin),
     session: AsyncSession = Depends(get_db)
 ):
     """
@@ -301,7 +302,7 @@ async def get_audit_logs_endpoint(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     action_filter: Optional[str] = Query(None, description="Filter by action type"),
-    current_admin: User = Depends(get_current_admin),
+    current_admin: Admin = Depends(get_current_admin),
     session: AsyncSession = Depends(get_db)
 ):
     """
@@ -342,7 +343,7 @@ async def get_audit_logs_endpoint(
 
 @router.get("/stats")
 async def get_admin_stats(
-    current_admin: User = Depends(get_current_admin),
+    current_admin: Admin = Depends(get_current_admin),
     session: AsyncSession = Depends(get_db)
 ):
     """

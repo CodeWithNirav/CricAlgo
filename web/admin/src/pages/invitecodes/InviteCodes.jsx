@@ -16,8 +16,8 @@ export default function InviteCodes() {
         setCodes(data);
         setError(null);
       } else {
-        const text = await r.text().catch(() => null);
-        setError(`Failed to load invite codes: ${r.status} ${text || ''}`);
+        const errorData = await r.json().catch(() => null);
+        setError(`Failed to load invite codes: ${r.status} ${errorData?.detail?.error || errorData?.detail || ''}`);
       }
     } catch (err) {
       setError("Error loading invite codes: " + err.message);
@@ -35,7 +35,8 @@ export default function InviteCodes() {
       if (r.ok) {
         await load(); // Reload the list
       } else {
-        setError("Failed to disable code");
+        const errorData = await r.json().catch(() => null);
+        setError(`Failed to disable code: ${errorData?.detail?.error || errorData?.detail || ''}`);
       }
     } catch (err) {
       setError("Error disabling code: " + err.message);

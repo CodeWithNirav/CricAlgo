@@ -15,7 +15,10 @@ export default function Login(){
         body: JSON.stringify({username: user, password: pass})
       });
       const j = await res.json();
-      if(!res.ok){ setErr(j.detail || "Login failed"); return; }
+      if(!res.ok){ 
+        setErr(j.detail?.error || j.detail || "Login failed"); 
+        return; 
+      }
       // store token in sessionStorage for now
       sessionStorage.setItem("admin_token", j.access_token);
       window.location.href = "/admin";

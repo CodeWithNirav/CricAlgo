@@ -1,5 +1,6 @@
 import os, asyncio
 from aiogram import Bot, Dispatcher
+from aiogram.client.default import DefaultBotProperties
 from app.bot.handlers.user_commands import router as user_router
 from aiogram.fsm.storage.memory import MemoryStorage
 
@@ -8,7 +9,7 @@ async def run_bot():
     if not token:
         print("TELEGRAM_BOT_TOKEN not set - bot will not run")
         return
-    bot = Bot(token=token, parse_mode="HTML")
+    bot = Bot(token=token, default=DefaultBotProperties(parse_mode="HTML"))
     dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(user_router)
     try:

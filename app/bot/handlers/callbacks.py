@@ -10,7 +10,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardBut
 from aiogram.fsm.context import FSMContext
 
 from app.core.config import settings
-from app.db.session import get_async_session
+from app.db.session import async_session
 from app.repos.user_repo import get_user_by_telegram_id
 from app.repos.contest_repo import get_contest_by_id
 from app.repos.contest_entry_repo import create_contest_entry, get_contest_entries
@@ -67,7 +67,7 @@ async def join_contest_callback(callback_query: CallbackQuery):
             )
             return
         
-        async for session in get_async_session():
+        async with async_session() as session:
             # Get user
             user = await get_user_by_telegram_id(session, callback_query.from_user.id)
             if not user:
@@ -162,7 +162,6 @@ async def join_contest_callback(callback_query: CallbackQuery):
             ])
             
             await callback_query.message.edit_text(success_text, reply_markup=keyboard)
-            break
             
     except ValueError as e:
         logger.error(f"Invalid contest ID format: {e}")
@@ -182,7 +181,7 @@ async def view_my_contests_callback(callback_query: CallbackQuery):
     await callback_query.answer()
     
     try:
-        async for session in get_async_session():
+        async with async_session() as session:
             user = await get_user_by_telegram_id(session, callback_query.from_user.id)
             if not user:
                 await callback_query.message.edit_text(
@@ -219,7 +218,6 @@ async def view_my_contests_callback(callback_query: CallbackQuery):
             ])
             
             await callback_query.message.edit_text(contests_text, reply_markup=keyboard)
-            break
             
     except Exception as e:
         logger.error(f"Error viewing user contests: {e}")
@@ -271,7 +269,7 @@ async def settings_callback(callback_query: CallbackQuery):
     await callback_query.answer()
     
     try:
-        async for session in get_async_session():
+        async with async_session() as session:
             user = await get_user_by_telegram_id(session, callback_query.from_user.id)
             if not user:
                 await callback_query.message.edit_text(
@@ -294,7 +292,6 @@ async def settings_callback(callback_query: CallbackQuery):
             ])
             
             await callback_query.message.edit_text(settings_text, reply_markup=keyboard)
-            break
             
     except Exception as e:
         logger.error(f"Error showing settings: {e}")

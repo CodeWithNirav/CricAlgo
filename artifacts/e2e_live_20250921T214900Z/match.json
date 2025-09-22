@@ -1,9 +1,0 @@
-﻿{
-    "message":  "Match created successfully!",
-    "match":  {
-                  "id":  "match-14",
-                  "title":  "E2E Live Match",
-                  "starts_at":  "2030-01-01T00:00:00Z",
-                  "status":  "scheduled"
-              }
-}

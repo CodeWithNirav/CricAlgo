@@ -5,6 +5,7 @@ Main entry point for the application
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
 from fastapi.responses import Response
 from fastapi import Request
@@ -42,6 +43,7 @@ from app.api.v1.contest_join import router as contest_join_router
 from app.api.v1.withdrawals_api import router as withdrawals_api_router
 from app.api.admin_ui import router as admin_ui_router
 from app.api.admin_finance import router as admin_finance_router
+from app.api.admin_finance_real import router as admin_finance_real_router
 from app.api.admin_matches_contests import router as admin_matches_contests_router
 from app.api.admin_manage import router as admin_manage_router
 from app.middleware.rate_limit import RateLimitMiddleware
@@ -133,8 +135,12 @@ app.include_router(debug_router, prefix="/api/v1/debug", tags=["debug"])
 app.include_router(test_contest_router, prefix="/api/v1/test", tags=["test"])
 app.include_router(admin_ui_router, tags=["admin-ui"])
 app.include_router(admin_finance_router, tags=["admin-finance"])
+app.include_router(admin_finance_real_router, tags=["admin-finance-real"])
 app.include_router(admin_matches_contests_router, tags=["admin-matches-contests"])
 app.include_router(admin_manage_router)
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 if __name__ == "__main__":
     import uvicorn

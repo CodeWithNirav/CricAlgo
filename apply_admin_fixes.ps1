@@ -46,7 +46,7 @@ if (-not $SkipSeed) {
         Write-Host "⚠ Database seeding failed or may need manual intervention: $($_.Exception.Message)" -ForegroundColor Yellow
     }
 } else {
-    Write-Host "`n3. Skipping database seeding (--SkipSeed flag)" -ForegroundColor Yellow
+    Write-Host "`n3. Skipping database seeding (-SkipSeed flag)" -ForegroundColor Yellow
 }
 
 # 4. Build admin UI if not skipped

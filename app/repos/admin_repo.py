@@ -85,6 +85,23 @@ async def get_admin_by_username(session: AsyncSession, username: str) -> Optiona
     return result.scalar_one_or_none()
 
 
+async def get_admin_by_id(session: AsyncSession, admin_id: UUID) -> Optional[Admin]:
+    """
+    Get admin by ID.
+    
+    Args:
+        session: Database session
+        admin_id: Admin UUID
+    
+    Returns:
+        Admin instance or None if not found
+    """
+    result = await session.execute(
+        select(Admin).where(Admin.id == admin_id)
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_admin_by_user_id(session: AsyncSession, user_id: UUID) -> Optional[Admin]:
     """
     Get admin by user ID.

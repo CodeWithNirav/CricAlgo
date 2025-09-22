@@ -18,7 +18,9 @@ export default function Matches(){
     .then(r => {
       console.log("API response status:", r.status);
       if (!r.ok) {
-        throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+        return r.json().then(errorData => {
+          throw new Error(`HTTP ${r.status}: ${errorData?.detail?.error || errorData?.detail || r.statusText}`);
+        });
       }
       return r.json();
     })
