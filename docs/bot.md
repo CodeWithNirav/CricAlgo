@@ -7,10 +7,12 @@ The CricAlgo Telegram Bot provides a user-friendly interface for managing cricke
 ## Features
 
 ### User Commands
-- `/start` - Register or login to your account
+- `/start [code]` - Register or login to your account (optional invite code)
+- `/menu` - Show main menu with all options
 - `/balance` - Check wallet balance (deposit, winning, bonus)
-- `/deposit` - Get deposit instructions
-- `/contests` - View available contests
+- `/deposit` - Get deposit instructions with per-user address
+- `/contests` - View available contests with detailed information
+- `/withdraw` - Request withdrawal with amount selection
 - `/help` - Show available commands
 
 ### Admin Commands
@@ -20,10 +22,16 @@ The CricAlgo Telegram Bot provides a user-friendly interface for managing cricke
 - `/admin_help` - Show admin commands
 
 ### Interactive Features
-- Inline keyboards for quick actions
+- Inline keyboards for quick actions and navigation
 - Idempotent contest joining (prevents duplicate entries)
 - Rate limiting to prevent spam
 - Real-time balance updates
+- Per-user deposit addresses with unique references
+- Withdrawal request system with status tracking
+- Contest details with prize structure and player count
+- Invite code system with bonus rewards
+- Push notifications for deposits, withdrawals, and contest settlements
+- Comprehensive settings and profile management
 
 ## Architecture
 
@@ -162,17 +170,34 @@ docker-compose -f docker-compose.bot.yml up -d
 
 ## User Flow Examples
 
-### New User Registration
-1. User sends `/start`
-2. Bot creates user account and wallet
-3. Bot sends welcome message with instructions
+### New User Registration with Invite Code
+1. User sends `/start INVITE123`
+2. Bot validates invite code and creates user account
+3. Bot credits bonus to user's wallet
+4. Bot sends welcome message with main menu
 
-### Joining a Contest
+### Deposit Process
+1. User sends `/deposit`
+2. Bot shows user-specific deposit address and reference
+3. User sends USDT to address with reference as memo
+4. System processes deposit and sends confirmation notification
+5. User's balance is updated automatically
+
+### Withdrawal Process
+1. User sends `/withdraw`
+2. Bot shows balance and amount selection options
+3. User selects amount and enters destination address
+4. Bot creates withdrawal request with pending status
+5. Admin approves withdrawal via admin panel
+6. User receives approval notification
+
+### Contest Interaction
 1. User sends `/contests`
-2. Bot shows available contests with join buttons
-3. User clicks join button
-4. Bot checks balance and processes payment
-5. Bot creates contest entry and confirms
+2. Bot shows available contests with player counts
+3. User clicks "Details" to see full contest information
+4. User clicks "Join" to enter contest
+5. Bot processes payment and creates entry
+6. When contest settles, user receives result notification
 
 ### Admin Creating Contest
 1. Admin sends `/create_contest`
