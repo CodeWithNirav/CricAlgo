@@ -132,6 +132,9 @@ async def balance_command(message: Message):
                 await message.answer("Please use /start first to register your account.")
                 return
             
+            # Save chat ID for notifications
+            await save_chat_id(session, user.id, str(message.chat.id))
+            
             wallet = await get_wallet_for_user(session, user.id)
             
             if not wallet:
@@ -215,6 +218,9 @@ async def contests_command(message: Message):
                 await message.answer("Please use /start first to register your account.")
                 return
             
+            # Save chat ID for notifications
+            await save_chat_id(session, user.id, str(message.chat.id))
+            
             # Get open contests
             contests = await get_contests(session, limit=10, status="open")
             
@@ -284,6 +290,9 @@ async def withdraw_command(message: Message, state: FSMContext):
             if not user:
                 await message.answer("Please use /start first to register your account.")
                 return
+            
+            # Save chat ID for notifications
+            await save_chat_id(session, user.id, str(message.chat.id))
             
             # Get user's wallet
             wallet = await get_wallet_for_user(session, user.id)
