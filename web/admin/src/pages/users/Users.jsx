@@ -69,6 +69,60 @@ export default function Users() {
     }
   }
 
+  async function deleteUser(userId, username) {
+    // Double confirmation for safety
+    const confirm1 = window.confirm(
+      `⚠️ WARNING: This will permanently delete user "${username}" and ALL their data!\n\n` +
+      `This includes:\n` +
+      `• User account\n` +
+      `• Wallet and balances\n` +
+      `• Contest entries\n` +
+      `• Transaction history\n` +
+      `• Chat mappings\n\n` +
+      `This action CANNOT be undone!\n\n` +
+      `Are you sure you want to continue?`
+    );
+    
+    if (!confirm1) return;
+    
+    const confirm2 = window.confirm(
+      `FINAL CONFIRMATION: You are about to permanently delete user "${username}"\n\n` +
+      `Type "DELETE" in the next prompt to confirm.`
+    );
+    
+    if (!confirm2) return;
+    
+    const finalConfirm = window.prompt(
+      `Type "DELETE" to confirm deletion of user "${username}":`
+    );
+    
+    if (finalConfirm !== "DELETE") {
+      alert("Deletion cancelled. You must type 'DELETE' exactly to confirm.");
+      return;
+    }
+    
+    try {
+      const r = await fetch(`/api/v1/admin/users/${userId}`, {
+        method: "DELETE",
+        headers: { 
+          Authorization: "Bearer " + sessionStorage.getItem("admin_token"),
+          "Content-Type": "application/json"
+        }
+      });
+      
+      if (r.ok) {
+        const result = await r.json();
+        alert(`✅ ${result.message}`);
+        await search(); // Reload the list
+      } else {
+        const errorData = await r.json().catch(() => null);
+        setError(`Failed to delete user: ${errorData?.detail?.error || errorData?.detail || ''}`);
+      }
+    } catch (err) {
+      setError("Error deleting user: " + err.message);
+    }
+  }
+
   useEffect(() => {
     search();
   }, []);
@@ -140,6 +194,13 @@ export default function Users() {
                           Unfreeze
                         </button>
                       )}
+                      <button
+                        className="text-sm bg-red-800 text-white px-3 py-1 rounded hover:bg-red-900"
+                        onClick={() => deleteUser(u.id, u.username)}
+                        title="⚠️ Permanently delete user and all data"
+                      >
+                        🗑️ Delete
+                      </button>
                     </div>
                   </div>
                 </li>

@@ -262,3 +262,72 @@ async def adjust_balance(user_id: str, payload: dict, db=Depends(get_db)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error": f"Failed to adjust balance: {str(e)}"}
         )
+
+@router.delete("/users/{user_id}")
+async def delete_user(
+    user_id: str, 
+    current_admin=Depends(get_current_admin), 
+    db=Depends(get_db)
+):
+    """
+    Delete a user and all associated data.
+    WARNING: This is a destructive operation that cannot be undone.
+    """
+    try:
+        from sqlalchemy import delete
+        from app.models.contest_entry import ContestEntry
+        from app.models.transaction import Transaction
+        from app.models.chat_map import ChatMap
+        
+        # Check if user exists
+        user_stmt = await db.execute(select(User).where(User.id == user_id))
+        user = user_stmt.scalar_one_or_none()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "User not found"}
+            )
+        
+        # Store user info for audit log
+        user_info = {
+            "username": user.username,
+            "telegram_id": user.telegram_id,
+            "status": user.status.value if hasattr(user.status, 'value') else str(user.status)
+        }
+        
+        # Delete related data in order (to respect foreign key constraints)
+        # 1. Delete contest entries
+        await db.execute(delete(ContestEntry).where(ContestEntry.user_id == user_id))
+        
+        # 2. Delete transactions
+        await db.execute(delete(Transaction).where(Transaction.user_id == user_id))
+        
+        # 3. Delete chat mappings
+        await db.execute(delete(ChatMap).where(ChatMap.user_id == user_id))
+        
+        # 4. Delete wallet
+        await db.execute(delete(Wallet).where(Wallet.user_id == user_id))
+        
+        # 5. Finally delete the user
+        await db.execute(delete(User).where(User.id == user_id))
+        
+        # Log the deletion
+        db.add(AuditLog(
+            action="delete_user", 
+            details={
+                "deleted_user": user_info,
+                "deleted_by": current_admin.username
+            }
+        ))
+        
+        await db.commit()
+        return {"ok": True, "message": f"User {user_info['username']} (ID: {user_id}) deleted successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": f"Failed to delete user: {str(e)}"}
+        )

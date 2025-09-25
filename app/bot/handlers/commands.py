@@ -17,7 +17,7 @@ from app.repos.user_repo import get_user_by_telegram_id, create_user, save_chat_
 from app.repos.wallet_repo import get_wallet_for_user, create_wallet_for_user
 from app.repos.contest_repo import get_contests
 from app.repos.contest_entry_repo import get_contest_entries
-from app.repos.invite_code_repo import validate_and_use_code
+from app.repos.invite_code_repo import validate_invite_code, validate_and_use_code
 from app.repos.deposit_repo import generate_deposit_reference, get_deposit_address_for_user, subscribe_to_deposit_notifications
 # Removed old withdrawal_repo imports - now using transaction-based approach
 from app.models.enums import UserStatus
@@ -33,6 +33,49 @@ class UserStates(StatesGroup):
     waiting_for_deposit_tx_hash = State()
     waiting_for_withdrawal_amount = State()
     waiting_for_withdrawal_address = State()
+    waiting_for_invite_code = State()
+
+
+async def check_invitation_code_access(telegram_id: int, message: Message = None) -> tuple[bool, str]:
+    """
+    Check if user has valid invitation code access.
+    Returns (has_access, error_message)
+    """
+    try:
+        async with async_session() as session:
+            # Check if user exists
+            user = await get_user_by_telegram_id(session, telegram_id)
+            
+            if not user:
+                # User doesn't exist - they need invitation code
+                return False, "You need a valid invitation code to access CricAlgo. Please use /start with your invitation code."
+            
+            # User exists - they have access
+            return True, ""
+            
+    except Exception as e:
+        logger.error(f"Error checking invitation code access: {e}")
+        return False, "Error checking access. Please try again."
+
+
+async def require_invitation_code(message: Message):
+    """
+    Show invitation code requirement message
+    """
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📝 Enter Invitation Code", callback_data="enter_invite_code")],
+        [InlineKeyboardButton(text="🆘 Contact Support", callback_data="support")]
+    ])
+    
+    await message.answer(
+        "🔐 *Access Restricted*\n\n"
+        "You need a valid invitation code to access CricAlgo features.\n"
+        "Please contact an admin or use an invitation link to get started.\n\n"
+        "If you have an invitation code, please use:\n"
+        "`/start YOUR_CODE`",
+        reply_markup=keyboard,
+        parse_mode="Markdown"
+    )
 
 
 async def handle_user_start(telegram_id: int, username: str, chat_id: int, invite_code: str = None, message: Message = None):
@@ -47,7 +90,37 @@ async def handle_user_start(telegram_id: int, username: str, chat_id: int, invit
                 await save_chat_id(session, user.id, str(chat_id))
             
             if not user:
-                # Create new user
+                # NEW USERS MUST HAVE INVITATION CODE
+                if not invite_code:
+                    # This should not happen in the new flow, but handle gracefully
+                    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="📝 Enter Invitation Code", callback_data="enter_invite_code")]
+                    ])
+                    await message.answer(
+                        "🔐 *Access Restricted*\n\n"
+                        "You need a valid invitation code to access CricAlgo.\n"
+                        "Please contact an admin or use an invitation link to get started.",
+                        reply_markup=keyboard,
+                        parse_mode="Markdown"
+                    )
+                    return
+                
+                # Validate invitation code before creating user
+                is_valid, msg = await validate_invite_code(session, invite_code)
+                if not is_valid:
+                    # Show error with retry options
+                    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="🔄 Try Again", callback_data="enter_invite_code")]
+                    ])
+                    await message.answer(
+                        f"❌ *Invalid Invitation Code*\n\n{msg}\n\n"
+                        "Please check your invitation code and try again.",
+                        reply_markup=keyboard,
+                        parse_mode="Markdown"
+                    )
+                    return
+                
+                # Create new user only after valid invitation code
                 user = await create_user(
                     session=session,
                     telegram_id=telegram_id,
@@ -61,28 +134,15 @@ async def handle_user_start(telegram_id: int, username: str, chat_id: int, invit
                 # Save chat ID for notifications
                 await save_chat_id(session, user.id, str(chat_id))
                 
-                # Handle invite code if provided
-                bonus_text = ""
-                if invite_code:
-                    is_valid, msg = await validate_and_use_code(session, invite_code, str(user.id))
-                    if is_valid:
-                        # Credit bonus to user (e.g., 5 USDT bonus)
-                        from decimal import Decimal
-                        bonus_amount = Decimal("5.00")
-                        wallet.bonus_balance += bonus_amount
-                        await session.commit()
-                        bonus_text = f"\n🎁 Bonus: You received {bonus_amount} {settings.currency} bonus for using invite code!"
-                    else:
-                        # Show error with retry options
-                        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                            [InlineKeyboardButton(text="🔄 Try Again", callback_data=f"start_with_code:{invite_code}")],
-                            [InlineKeyboardButton(text="➡️ Continue Without Code", callback_data="start_without_code")]
-                        ])
-                        await message.answer(
-                            f"❌ {msg}\n\nWould you like to try again or continue without an invite code?",
-                            reply_markup=keyboard
-                        )
-                        return
+                # Apply invitation code bonus and mark code as used
+                from decimal import Decimal
+                bonus_amount = Decimal("5.00")
+                wallet.bonus_balance += bonus_amount
+                
+                # Mark the invitation code as used
+                await validate_and_use_code(session, invite_code, str(user.id))
+                await session.commit()
+                bonus_text = f"\n🎁 Bonus: You received {bonus_amount} {settings.currency} bonus for using invite code!"
                 
                 welcome_text = (
                     f"🎉 *Welcome to CricAlgo!* 🏏\n\n"
@@ -141,24 +201,63 @@ async def handle_user_start(telegram_id: int, username: str, chat_id: int, invit
 
 @user_router.message(Command("start"))
 async def start_command(message: Message):
-    """Handle /start command - register user if not exists, optionally with invite code"""
-    # Extract invite code from command if present
-    invite_code = None
-    if len(message.text.split()) > 1:
-        invite_code = message.text.split()[1]
-    
-    await handle_user_start(
-        telegram_id=message.from_user.id,
-        username=message.from_user.username or f"user_{message.from_user.id}",
-        chat_id=message.chat.id,
-        invite_code=invite_code,
-        message=message
-    )
+    """Handle /start command - always ask for invitation code interactively"""
+    # Check if user already exists
+    try:
+        async with async_session() as session:
+            user = await get_user_by_telegram_id(session, message.from_user.id)
+            
+            if user:
+                # User exists - show welcome back message
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")],
+                    [InlineKeyboardButton(text="💰 Balance", callback_data="balance")],
+                    [InlineKeyboardButton(text="🏏 Contests", callback_data="contests")]
+                ])
+                
+                await message.answer(
+                    f"🎉 *Welcome back to CricAlgo!* 🏏\n\n"
+                    f"Hello *{user.username}*! You're already registered.\n\n"
+                    f"Use the menu below to access your account:",
+                    reply_markup=keyboard,
+                    parse_mode="Markdown"
+                )
+                return
+            
+            # User doesn't exist - ask for invitation code
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="📝 Enter Invitation Code", callback_data="enter_invite_code")],
+                [InlineKeyboardButton(text="🆘 Contact Support", callback_data="support")]
+            ])
+            
+            await message.answer(
+                "🔐 *Welcome to CricAlgo!* 🏏\n\n"
+                "To get started, you need a valid invitation code.\n"
+                "Please contact an admin or use an invitation link.\n\n"
+                "If you have an invitation code, click the button below:",
+                reply_markup=keyboard,
+                parse_mode="Markdown"
+            )
+            
+    except Exception as e:
+        logger.error(f"Error in start command: {e}")
+        await message.answer(
+            "❌ Sorry, there was an error. Please try again or contact support.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🆘 Contact Support", callback_data="support")]
+            ])
+        )
 
 
 @user_router.message(Command("balance"))
 async def balance_command(message: Message):
     """Handle /balance command - show user's wallet balance"""
+    # Check invitation code access first
+    has_access, error_msg = await check_invitation_code_access(message.from_user.id, message)
+    if not has_access:
+        await require_invitation_code(message)
+        return
+    
     try:
         async with async_session() as session:
             user = await get_user_by_telegram_id(session, message.from_user.id)
@@ -213,6 +312,12 @@ async def balance_command(message: Message):
 @user_router.message(Command("deposit"))
 async def deposit_command(message: Message, state: FSMContext):
     """Handle /deposit command - show deposit instructions and start manual flow"""
+    # Check invitation code access first
+    has_access, error_msg = await check_invitation_code_access(message.from_user.id, message)
+    if not has_access:
+        await require_invitation_code(message)
+        return
+    
     try:
         async with async_session() as session:
             user = await get_user_by_telegram_id(session, message.from_user.id)
@@ -268,6 +373,12 @@ async def deposit_command(message: Message, state: FSMContext):
 @user_router.message(Command("contests"))
 async def contests_command(message: Message):
     """Handle /contests command - show available contests"""
+    # Check invitation code access first
+    has_access, error_msg = await check_invitation_code_access(message.from_user.id, message)
+    if not has_access:
+        await require_invitation_code(message)
+        return
+    
     try:
         async with async_session() as session:
             user = await get_user_by_telegram_id(session, message.from_user.id)
@@ -349,6 +460,12 @@ async def contests_command(message: Message):
 @user_router.message(Command("withdraw"))
 async def withdraw_command(message: Message, state: FSMContext):
     """Handle /withdraw command - start withdrawal process"""
+    # Check invitation code access first
+    has_access, error_msg = await check_invitation_code_access(message.from_user.id, message)
+    if not has_access:
+        await require_invitation_code(message)
+        return
+    
     try:
         async with async_session() as session:
             user = await get_user_by_telegram_id(session, message.from_user.id)
@@ -437,6 +554,12 @@ async def withdraw_command(message: Message, state: FSMContext):
 @user_router.message(Command("menu"))
 async def menu_command(message: Message):
     """Handle /menu command - show main menu"""
+    # Check invitation code access first
+    has_access, error_msg = await check_invitation_code_access(message.from_user.id, message)
+    if not has_access:
+        await require_invitation_code(message)
+        return
+    
     try:
         async with async_session() as session:
             user = await get_user_by_telegram_id(session, message.from_user.id)
@@ -473,6 +596,11 @@ async def menu_command(message: Message):
 @user_router.message(Command("help"))
 async def help_command(message: Message):
     """Handle /help command - show available commands"""
+    # Check invitation code access first
+    has_access, error_msg = await check_invitation_code_access(message.from_user.id, message)
+    if not has_access:
+        await require_invitation_code(message)
+        return
     help_text = (
         "🤖 *CricAlgo Bot Commands*\n\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -508,6 +636,12 @@ async def help_command(message: Message):
 async def balance_callback(callback_query):
     """Handle balance callback"""
     await callback_query.answer()
+    
+    # Check invitation code access first
+    has_access, error_msg = await check_invitation_code_access(callback_query.from_user.id)
+    if not has_access:
+        await require_invitation_code(callback_query.message)
+        return
     
     # Get balance directly without creating fake message
     try:
@@ -554,6 +688,12 @@ async def main_menu_callback(callback_query):
     """Handle main menu callback"""
     await callback_query.answer()
     
+    # Check invitation code access first
+    has_access, error_msg = await check_invitation_code_access(callback_query.from_user.id)
+    if not has_access:
+        await require_invitation_code(callback_query.message)
+        return
+    
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💰 Balance", callback_data="balance")],
         [InlineKeyboardButton(text="💳 Deposit", callback_data="deposit")],
@@ -575,6 +715,12 @@ async def main_menu_callback(callback_query):
 async def deposit_callback(callback_query):
     """Handle deposit callback"""
     await callback_query.answer()
+    
+    # Check invitation code access first
+    has_access, error_msg = await check_invitation_code_access(callback_query.from_user.id)
+    if not has_access:
+        await require_invitation_code(callback_query.message)
+        return
     
     # Handle deposit directly without creating fake message
     try:
@@ -627,6 +773,12 @@ async def deposit_callback(callback_query):
 async def contests_callback(callback_query):
     """Handle contests callback"""
     await callback_query.answer()
+    
+    # Check invitation code access first
+    has_access, error_msg = await check_invitation_code_access(callback_query.from_user.id)
+    if not has_access:
+        await require_invitation_code(callback_query.message)
+        return
     
     # Get contests directly without creating fake message
     try:
@@ -686,43 +838,17 @@ async def contests_callback(callback_query):
         await callback_query.message.answer("❌ Error loading contests. Please try again.")
 
 
-@user_router.callback_query(F.data.startswith("start_with_code:"))
-async def start_with_code_callback(callback_query):
-    """Handle start with invite code retry"""
-    await callback_query.answer()
-    invite_code = callback_query.data.split(":", 1)[1]
-    
-    # Use the helper function directly
-    welcome_text, keyboard = await handle_user_start(
-        telegram_id=callback_query.from_user.id,
-        username=callback_query.from_user.username or f"user_{callback_query.from_user.id}",
-        chat_id=callback_query.message.chat.id,
-        invite_code=invite_code
-    )
-    
-    await callback_query.message.edit_text(
-        welcome_text,
-        reply_markup=keyboard,
-        parse_mode="Markdown"
-    )
-
-
-@user_router.callback_query(F.data == "start_without_code")
-async def start_without_code_callback(callback_query):
-    """Handle start without invite code"""
+@user_router.callback_query(F.data == "enter_invite_code")
+async def enter_invite_code_callback(callback_query, state: FSMContext):
+    """Handle enter invitation code callback"""
     await callback_query.answer()
     
-    # Use the helper function directly
-    welcome_text, keyboard = await handle_user_start(
-        telegram_id=callback_query.from_user.id,
-        username=callback_query.from_user.username or f"user_{callback_query.from_user.id}",
-        chat_id=callback_query.message.chat.id,
-        invite_code=None
-    )
-    
+    await state.set_state(UserStates.waiting_for_invite_code)
     await callback_query.message.edit_text(
-        welcome_text,
-        reply_markup=keyboard,
+        "📝 *Enter Your Invitation Code*\n\n"
+        "Please send me your invitation code by typing it directly.\n"
+        "Example: `ABC123` or `MYCODE456`\n\n"
+        "⚠️ Make sure to type the code exactly as provided.",
         parse_mode="Markdown"
     )
 
@@ -1106,6 +1232,33 @@ async def process_withdrawal_address(message: Message, state: FSMContext):
         await state.clear()
 
 
+@user_router.message(UserStates.waiting_for_invite_code)
+async def process_invite_code(message: Message, state: FSMContext):
+    """Process invitation code input"""
+    try:
+        invite_code = message.text.strip()
+        
+        if not invite_code:
+            await message.answer("❌ Please enter a valid invitation code.")
+            return
+        
+        # Process the invitation code using the start handler
+        await handle_user_start(
+            telegram_id=message.from_user.id,
+            username=message.from_user.username or f"user_{message.from_user.id}",
+            chat_id=message.chat.id,
+            invite_code=invite_code,
+            message=message
+        )
+        
+        await state.clear()
+        
+    except Exception as e:
+        logger.error(f"Error processing invitation code: {e}")
+        await message.answer("❌ Error processing invitation code. Please try again.")
+        await state.clear()
+
+
 @user_router.callback_query(F.data == "withdraw_cancel")
 async def withdraw_cancel_callback(callback_query, state: FSMContext):
     """Handle withdrawal cancellation"""
@@ -1222,6 +1375,12 @@ async def withdraw_callback(callback_query, state: FSMContext):
     """Handle withdraw callback from menu"""
     await callback_query.answer()
     
+    # Check invitation code access first
+    has_access, error_msg = await check_invitation_code_access(callback_query.from_user.id)
+    if not has_access:
+        await require_invitation_code(callback_query.message)
+        return
+    
     # Handle withdraw directly without creating fake message
     try:
         async with async_session() as session:
@@ -1286,6 +1445,12 @@ async def withdraw_callback(callback_query, state: FSMContext):
 async def my_contests_callback(callback_query):
     """Handle my contests callback"""
     await callback_query.answer()
+    
+    # Check invitation code access first
+    has_access, error_msg = await check_invitation_code_access(callback_query.from_user.id)
+    if not has_access:
+        await require_invitation_code(callback_query.message)
+        return
     
     try:
         async with async_session() as session:

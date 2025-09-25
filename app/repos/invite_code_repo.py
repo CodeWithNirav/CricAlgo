@@ -26,14 +26,13 @@ async def get_invite_code(session: AsyncSession, code: str) -> Optional[Invitati
     return result.scalar_one_or_none()
 
 
-async def validate_and_use_code(session: AsyncSession, code: str, user_id: str) -> tuple[bool, str]:
+async def validate_invite_code(session: AsyncSession, code: str) -> tuple[bool, str]:
     """
-    Validate and use an invite code for a user.
+    Validate an invite code without using it.
     
     Args:
         session: Database session
         code: Invite code string
-        user_id: User ID who is using the code
     
     Returns:
         Tuple of (is_valid, message)
@@ -54,7 +53,28 @@ async def validate_and_use_code(session: AsyncSession, code: str, user_id: str) 
     if invite_code.max_uses and invite_code.uses >= invite_code.max_uses:
         return False, "This invite code has reached its maximum usage limit"
     
-    # Increment usage count
+    return True, "Invite code is valid"
+
+
+async def validate_and_use_code(session: AsyncSession, code: str, user_id: str) -> tuple[bool, str]:
+    """
+    Validate and use an invite code for a user.
+    
+    Args:
+        session: Database session
+        code: Invite code string
+        user_id: User ID who is using the code
+    
+    Returns:
+        Tuple of (is_valid, message)
+    """
+    # First validate the code
+    is_valid, msg = await validate_invite_code(session, code)
+    if not is_valid:
+        return False, msg
+    
+    # If valid, increment usage count
+    invite_code = await get_invite_code(session, code)
     invite_code.uses += 1
     await session.commit()
     

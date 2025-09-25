@@ -24,14 +24,24 @@ CricAlgo is a comprehensive cricket trading platform that combines real-time dat
    docker-compose up -d
    ```
 
-2. **Run smoke tests:**
+2. **Start the application:**
    ```bash
-   python scripts/smoke_test.py
+   python cli.py app start
    ```
 
-3. **Load testing:**
+3. **Start the bot:**
    ```bash
-   k6 run --vus 100 --duration 5m load/k6/webhook_test.js
+   python cli.py bot polling
+   ```
+
+4. **Run smoke tests:**
+   ```bash
+   python cli.py test smoke
+   ```
+
+5. **Load testing:**
+   ```bash
+   python cli.py test load
    ```
 
 ### Staging Environment
@@ -73,12 +83,41 @@ ADMIN_USERNAME=${ADMIN_USERNAME} ADMIN_PASSWORD=${ADMIN_PASSWORD} python app/scr
 ```
 - To disable Telegram admin commands in production, set `DISABLE_TELEGRAM_ADMIN_CMDS=true` in the environment.
 
+## CLI Usage
+
+The CricAlgo project now includes a unified CLI for all operations:
+
+```bash
+# Bot management
+python cli.py bot polling          # Start bot in polling mode
+python cli.py bot webhook          # Start bot in webhook mode
+python cli.py bot managed          # Start bot with process management
+python cli.py bot stop             # Stop running bot
+python cli.py bot restart          # Restart bot
+python cli.py bot status           # Check bot status
+
+# Application management
+python cli.py app start            # Start FastAPI application
+python cli.py app dev              # Start in development mode
+
+# Database management
+python cli.py db migrate           # Run database migrations
+python cli.py db upgrade           # Upgrade database
+
+# Testing
+python cli.py test smoke           # Run smoke tests
+python cli.py test load             # Run load tests
+
+# Help
+python cli.py help                 # Show all available commands
+```
+
 ## Documentation
 
-- [Performance Rollout Summary](PERFORMANCE_ROLLOUT_SUMMARY.md)
 - [Bot Documentation](docs/bot.md)
 - [Runbook](docs/runbook.md)
 - [Production Rollout Guide](docs/runbook_prod_rollout.md)
+- [Development Rules](docs/DEVELOPMENT_RULES.md)
 
 ## License
 

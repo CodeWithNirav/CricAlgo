@@ -6,7 +6,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:password@postgres:5432/cricalgo_test
+      - DATABASE_URL=postgresql+asyncpg://postgres:password@postgres:5432/cricalgo
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/1
       - CELERY_RESULT_BACKEND=redis://redis:6379/2
@@ -43,7 +43,7 @@ services:
   worker:
     build: .
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:password@postgres:5432/cricalgo_test
+      - DATABASE_URL=postgresql+asyncpg://postgres:password@postgres:5432/cricalgo
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/1
       - CELERY_RESULT_BACKEND=redis://redis:6379/2

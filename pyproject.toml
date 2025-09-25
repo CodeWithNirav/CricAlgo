@@ -20,25 +20,66 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "fastapi>=0.104.1",
-    "uvicorn[standard]>=0.24.0",
-    "sqlalchemy[asyncio]>=2.0.23",
-    "asyncpg>=0.29.0",
-    "alembic>=1.12.1",
-    "redis>=5.0.1",
-    "aiogram>=3.2.0",
-    "pydantic[email]>=2.5.0",
-    "python-dotenv>=1.0.0",
-    "httpx>=0.25.2",
-    "python-multipart>=0.0.6",
+    # FastAPI and web framework
+    "fastapi==0.104.1",
+    "uvicorn[standard]==0.24.0",
+    
+    # Database
+    "sqlalchemy[asyncio]==2.0.23",
+    "asyncpg==0.29.0",
+    "alembic==1.12.1",
+    
+    # Redis
+    "redis>=4.6.0",
+    
+    # Telegram Bot
+    "aiogram==3.2.0",
+    
+    # Configuration
+    "pydantic[email]==2.5.0",
+    "pydantic-settings==2.1.0",
+    "python-dotenv==1.0.0",
+    
+    # HTTP client
+    "httpx==0.25.2",
+    
+    # Celery
+    "celery==5.3.4",
+    
+    # JWT Authentication
+    "python-jose[cryptography]==3.3.0",
+    "passlib[bcrypt]==1.7.4",
+    
+    # Rate limiting
+    "slowapi==0.1.9",
+    
+    # Prometheus metrics
+    "prometheus-client==0.19.0",
+    
+    # Sentry integration
+    "sentry-sdk[fastapi]==1.38.0",
+    
+    # Development
+    "python-multipart==0.0.6",
+    
+    # Password hashing and 2FA
+    "pyotp==2.9.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.4.3",
-    "pytest-asyncio>=0.21.1",
-    "ruff>=0.1.6",
-    "black>=23.11.0",
+    # Testing
+    "pytest==7.4.3",
+    "pytest-asyncio==0.21.1",
+    "pytest-xdist==3.3.1",
+    "pytest-cov==4.1.0",
+    
+    # Linting and formatting
+    "ruff==0.1.6",
+    "black==23.11.0",
+    
+    # Load testing
+    "k6==0.57.0",
 ]
 
 [tool.ruff]
