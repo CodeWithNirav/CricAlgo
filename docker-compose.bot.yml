@@ -7,8 +7,8 @@ services:
       dockerfile: Dockerfile.bot
     environment:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
+      - DATABASE_URL=postgresql+asyncpg://postgres:password@postgres:5432/cricalgo
+      - REDIS_URL=redis://redis:6379/0
       - TELEGRAM_WEBHOOK_URL=${TELEGRAM_WEBHOOK_URL}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET}
       - RATE_LIMIT_REQUESTS=${RATE_LIMIT_REQUESTS:-30}
@@ -18,7 +18,7 @@ services:
       - postgres
     restart: unless-stopped
     networks:
-      - cricalgo-network
+      - default
 
   redis:
     image: redis:7-alpine
@@ -26,7 +26,7 @@ services:
     volumes:
       - redis_data:/data
     networks:
-      - cricalgo-network
+      - default
 
   postgres:
     image: postgres:15
@@ -38,12 +38,13 @@ services:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
     networks:
-      - cricalgo-network
+      - default
 
 volumes:
   redis_data:
   postgres_data:
 
 networks:
-  cricalgo-network:
-    driver: bridge
+  default:
+    external: true
+    name: cricalgo_default

@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 from sqlalchemy.pool import StaticPool
 from sqlalchemy import text
 import redis.asyncio as redis
+import httpx
 from httpx import AsyncClient
 from fastapi import FastAPI
 
@@ -232,7 +233,7 @@ async def test_client(test_app) -> AsyncGenerator[AsyncClient, None]:
     2. Yields the client for test use
     3. Properly closes the client after test
     """
-    async with AsyncClient(app=test_app, base_url="http://test") as client:
+    async with AsyncClient(transport=httpx.ASGITransport(app=test_app), base_url="http://test") as client:
         yield client
 
 

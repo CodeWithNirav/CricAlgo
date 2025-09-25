@@ -41,26 +41,29 @@ async def is_admin_user(session: AsyncSession, user_id: UUID) -> bool:
 
 async def create_admin_user(
     session: AsyncSession,
-    user_id: UUID,
-    totp_secret: str,
-    is_super_admin: bool = False
+    username: str,
+    password_hash: str,
+    email: str = None,
+    totp_secret: str = None
 ) -> Admin:
     """
     Create an admin user.
     
     Args:
         session: Database session
-        user_id: User UUID
-        totp_secret: TOTP secret for 2FA
-        is_super_admin: Whether this is a super admin
+        username: Admin username
+        password_hash: Hashed password
+        email: Admin email (optional)
+        totp_secret: TOTP secret for 2FA (optional)
     
     Returns:
         Created Admin instance
     """
     admin = Admin(
-        user_id=user_id,
-        totp_secret=totp_secret,
-        is_super_admin=is_super_admin
+        username=username,
+        password_hash=password_hash,
+        email=email,
+        totp_secret=totp_secret
     )
     session.add(admin)
     await session.commit()

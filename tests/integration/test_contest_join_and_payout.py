@@ -10,7 +10,9 @@ from app.repos.user_repo import create_user
 from app.repos.wallet_repo import create_wallet_for_user, get_wallet_for_user
 from app.repos.contest_repo import create_contest, get_contest_by_id
 from app.repos.contest_entry_repo import get_contest_entries
+from app.repos.admin_repo import create_admin_user
 from app.models.enums import UserStatus, ContestStatus
+from app.models.admin import Admin
 from tests.fixtures.database import assert_wallet_balance
 
 
@@ -19,7 +21,18 @@ from tests.fixtures.database import assert_wallet_balance
 async def test_contest_creation_and_join(test_client, async_session):
     """Test contest creation and user joining."""
     # Create admin user
-    admin_user = await create_user(
+    from passlib.context import CryptContext
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    admin_user = await create_admin_user(
+        session=async_session,
+        username="admin",
+        password_hash=pwd_context.hash("admin123"),
+        email="admin@test.com",
+        totp_secret="test_secret"
+    )
+    
+    # Create regular user for admin (for wallet functionality)
+    admin_regular_user = await create_user(
         session=async_session,
         telegram_id=99999,
         username="admin",
@@ -35,7 +48,7 @@ async def test_contest_creation_and_join(test_client, async_session):
     )
     
     # Create wallets
-    await create_wallet_for_user(async_session, admin_user.id)
+    await create_wallet_for_user(async_session, admin_regular_user.id)
     await create_wallet_for_user(async_session, user.id)
     
     # Add balance to user
@@ -48,25 +61,24 @@ async def test_contest_creation_and_join(test_client, async_session):
     
     # Create JWT tokens
     from app.core.auth import create_access_token
-    admin_token = create_access_token(data={"sub": str(admin_user.id)})
+    admin_token = create_access_token(data={"sub": str(admin_user.id), "type": "admin"})
     user_token = create_access_token(data={"sub": str(user.id)})
     
     # Create contest (admin)
     contest_data = {
         "match_id": "match_123",
         "title": "Test Contest",
-        "description": "A test contest",
         "entry_fee": "10.00",
         "max_participants": 5,
-        "prize_structure": {
-            "1": "50%",
-            "2": "30%",
-            "3": "20%"
-        }
+        "prize_structure": [
+            {"pos": 1, "pct": 50.0},
+            {"pos": 2, "pct": 30.0},
+            {"pos": 3, "pct": 20.0}
+        ]
     }
     
     response = await test_client.post(
-        "/api/v1/contest/admin/contest",
+        "/api/v1/admin/contest",
         json=contest_data,
         headers={"Authorization": f"Bearer {admin_token}"}
     )
@@ -136,10 +148,9 @@ async def test_contest_join_insufficient_balance(test_client, async_session):
         session=async_session,
         match_id="match_456",
         title="Test Contest 2",
-        description="Another test contest",
         entry_fee=Decimal('50.00'),
         max_participants=3,
-        prize_structure={"1": "100%"},
+        prize_structure=[{"pos": 1, "pct": 100.0}],
         created_by=admin_user.id
     )
     
@@ -193,10 +204,9 @@ async def test_contest_join_already_joined(test_client, async_session):
         session=async_session,
         match_id="match_789",
         title="Test Contest 3",
-        description="Another test contest",
         entry_fee=Decimal('20.00'),
         max_participants=5,
-        prize_structure={"1": "100%"},
+        prize_structure=[{"pos": 1, "pct": 100.0}],
         created_by=admin_user.id
     )
     
@@ -259,10 +269,9 @@ async def test_contest_join_full_contest(test_client, async_session):
         session=async_session,
         match_id="match_full",
         title="Full Contest",
-        description="A contest that will be full",
         entry_fee=Decimal('10.00'),
         max_participants=2,  # Only 2 participants allowed
-        prize_structure={"1": "100%"},
+        prize_structure=[{"pos": 1, "pct": 100.0}],
         created_by=admin_user.id
     )
     
@@ -308,14 +317,13 @@ async def test_contest_settlement(test_client, async_session):
         session=async_session,
         match_id="match_settle",
         title="Settlement Contest",
-        description="A contest for testing settlement",
         entry_fee=Decimal('20.00'),
         max_participants=3,
-        prize_structure={
-            "1": "50%",
-            "2": "30%",
-            "3": "20%"
-        },
+        prize_structure=[
+            {"pos": 1, "pct": 50.0},
+            {"pos": 2, "pct": 30.0},
+            {"pos": 3, "pct": 20.0}
+        ],
         created_by=admin_user.id
     )
     
@@ -352,7 +360,7 @@ async def test_contest_settlement(test_client, async_session):
     
     # Settle contest
     response = await test_client.post(
-        f"/api/v1/contest/admin/{contest.id}/settle",
+        f"/api/v1/admin/contest/{contest.id}/settle",
         headers={"Authorization": f"Bearer {admin_token}"}
     )
     
@@ -388,10 +396,9 @@ async def test_contest_list_endpoint(test_client, async_session):
             session=async_session,
             match_id=f"match_list_{i}",
             title=f"Contest {i}",
-            description=f"Description for contest {i}",
             entry_fee=Decimal('10.00'),
             max_participants=5,
-            prize_structure={"1": "100%"},
+            prize_structure=[{"pos": 1, "pct": 100.0}],
             created_by=admin_user.id
         )
     
@@ -434,10 +441,12 @@ async def test_contest_detail_endpoint(test_client, async_session):
         session=async_session,
         match_id="match_detail",
         title="Detail Contest",
-        description="A contest for testing detail endpoint",
         entry_fee=Decimal('15.00'),
         max_participants=4,
-        prize_structure={"1": "60%", "2": "40%"},
+        prize_structure=[
+            {"pos": 1, "pct": 60.0},
+            {"pos": 2, "pct": 40.0}
+        ],
         created_by=admin_user.id
     )
     
@@ -484,9 +493,9 @@ async def test_unauthorized_contest_access(test_client):
         "prize_structure": {"1": "100%"}
     }
     
-    response = await test_client.post("/api/v1/contest/admin/contest", json=contest_data)
+    response = await test_client.post("/api/v1/admin/contest", json=contest_data)
     assert response.status_code == 401
     
     # Test contest settlement without auth
-    response = await test_client.post(f"/api/v1/contest/admin/{fake_contest_id}/settle")
+    response = await test_client.post(f"/api/v1/admin/contest/{fake_contest_id}/settle")
     assert response.status_code == 401

@@ -137,6 +137,8 @@ async def bep20_webhook(payload: WebhookPayload, request: Request):
     from app.db.session import get_db
     from app.celery_app import celery_app
     
+    logger.info(f"BEP20 webhook received: tx_hash={payload.tx_hash}, amount={payload.amount}")
+    
     tx_hash = payload.tx_hash
     amount = payload.amount
     metadata = payload.metadata or {}
@@ -160,20 +162,22 @@ async def bep20_webhook(payload: WebhookPayload, request: Request):
             if payload.user_id:
                 metadata["telegram_id"] = payload.user_id
             
+            logger.info(f"Inserting transaction: tx_id={tx_id}, amount={amount}, metadata={json.dumps(metadata)}")
+            
             await db.execute(sa_text(
-                "INSERT INTO transactions (id, tx_type, amount, currency, metadata, status, created_at) "
-                "VALUES (:id, :tx_type, :amount, :currency, :metadata, :status, now())"
+                "INSERT INTO transactions (id, tx_type, amount, currency, metadata, created_at) "
+                "VALUES (:id, :tx_type, :amount, :currency, :metadata, now())"
             ), {
                 "id": tx_id, 
                 "tx_type": "deposit", 
                 "amount": amount, 
                 "currency": "USDT",
-                "metadata": json.dumps(metadata), 
-                "status": "pending"
+                "metadata": json.dumps(metadata)
             })
             await db.commit()
-    except Exception:
-        logger.exception("failed to persist transaction record; continuing with enqueue", extra={"tx_hash": tx_hash})
+            logger.info(f"Transaction {tx_id} successfully inserted into database")
+    except Exception as e:
+        logger.exception("failed to persist transaction record; continuing with enqueue", extra={"tx_hash": tx_hash, "error": str(e)})
     
     # Enqueue processing (idempotent)
     try:

@@ -25,6 +25,7 @@ class WalletBalance(BaseModel):
     deposit_balance: str
     bonus_balance: str
     winning_balance: str
+    held_balance: str
     total_balance: str
 
 
@@ -64,6 +65,7 @@ async def get_wallet_balance(
         deposit_balance=str(wallet.deposit_balance),
         bonus_balance=str(wallet.bonus_balance),
         winning_balance=str(wallet.winning_balance),
+        held_balance=str(wallet.held_balance),
         total_balance=str(total_balance)
     )
 
@@ -96,12 +98,25 @@ async def create_withdrawal_request(
                 detail="Wallet not found"
             )
         
-        # Check if user has sufficient balance
-        total_balance = wallet.deposit_balance + wallet.bonus_balance + wallet.winning_balance
-        if total_balance < amount:
+        # Check if user has sufficient winning balance (only winning balance can be withdrawn)
+        if wallet.winning_balance < amount:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Insufficient balance"
+                detail="Insufficient winning balance for withdrawal. Only winning balance can be withdrawn."
+            )
+        
+        # Process withdrawal hold (move from winning to held balance)
+        from app.repos.wallet_repo import process_withdrawal_hold_atomic
+        success, error = await process_withdrawal_hold_atomic(
+            session=session,
+            user_id=current_user.id,
+            amount=amount
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Failed to process withdrawal hold: {error}"
             )
         
         # Create withdrawal transaction
@@ -116,7 +131,8 @@ async def create_withdrawal_request(
             tx_metadata={
                 "withdrawal_address": withdrawal_data.withdrawal_address,
                 "notes": withdrawal_data.notes,
-                "status": "pending"
+                "status": "pending",
+                "amount_held": str(amount)
             }
         )
         

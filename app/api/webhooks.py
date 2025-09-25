@@ -213,16 +213,9 @@ async def process_withdrawal_confirmation(
             logger.error(f"Wallet not found for user {user_id}")
             return False
         
-        # Update wallet balance (withdrawal reduces balance)
-        success, error = await update_balances_atomic(
-            session,
-            user_id,
-            deposit_delta=-amount
-        )
-        
-        if not success:
-            logger.error(f"Failed to update wallet for user {user_id}: {error}")
-            return False
+        # Note: Balance should have been deducted when withdrawal was created
+        # This webhook is for external confirmation only - no balance changes needed
+        logger.info(f"Withdrawal confirmation received for user {user_id}, amount: {amount}")
         
         logger.info(f"Successfully processed withdrawal {tx_hash} for user {user_id}, amount: {amount}")
         return True

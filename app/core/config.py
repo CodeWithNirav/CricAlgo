@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     # JWT settings
     jwt_secret_key: str = "your-jwt-secret-key-change-in-production"
     jwt_algorithm: str = "HS256"
-    jwt_access_token_expire_minutes: int = 15
+    jwt_access_token_expire_minutes: int = 1440  # 24 hours
     jwt_refresh_token_expire_days: int = 7
     
     # Rate limiting settings
@@ -37,9 +37,13 @@ class Settings(BaseSettings):
     rate_limit_window_seconds: int = 60
     
     # Business settings
-    platform_commission_pct: float = 5.0
+    platform_commission_pct: float = 15.0
     confirmation_threshold: int = 3
     currency: str = "USDT"
+    
+    # Contest settings
+    # Default prize structure: 100% to 1st rank only
+    # This ensures only one winner gets the entire prize pool
     
     # Webhook settings
     webhook_secret: Optional[str] = None

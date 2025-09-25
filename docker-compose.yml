@@ -6,7 +6,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:password@postgres:5432/cricalgo
+      - DATABASE_URL=postgresql+asyncpg://postgres:password@postgres:5432/cricalgo_test
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/1
       - CELERY_RESULT_BACKEND=redis://redis:6379/2
@@ -31,6 +31,7 @@ services:
       - "5432:5432"
     volumes:
       - ./cric_algo_postgre_sql_schema_ddl.sql:/docker-entrypoint-initdb.d/init.sql
+      - cricalgo_postgres_test_data:/var/lib/postgresql/data
 
   redis:
     image: redis:latest
@@ -42,7 +43,7 @@ services:
   worker:
     build: .
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:password@postgres:5432/cricalgo
+      - DATABASE_URL=postgresql+asyncpg://postgres:password@postgres:5432/cricalgo_test
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/1
       - CELERY_RESULT_BACKEND=redis://redis:6379/2
@@ -60,3 +61,5 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  cricalgo_postgres_test_data:
+    external: true

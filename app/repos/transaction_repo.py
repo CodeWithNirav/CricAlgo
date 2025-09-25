@@ -47,8 +47,7 @@ async def create_transaction(
         tx_metadata=tx_metadata
     )
     session.add(transaction)
-    await session.commit()
-    await session.refresh(transaction)
+    # Don't commit here - let the caller handle it
     return transaction
 
 
@@ -168,7 +167,7 @@ async def get_transaction_by_metadata(
     query = select(Transaction)
     
     for key, value in metadata_filter.items():
-        query = query.where(Transaction.tx_metadata[key].astext == str(value))
+        query = query.where(Transaction.tx_metadata.op('->>')(key) == str(value))
     
     result = await session.execute(query.limit(1))
     return result.scalar_one_or_none()

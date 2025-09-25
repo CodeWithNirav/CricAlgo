@@ -286,71 +286,66 @@ async def debit_for_contest_entry(
         if not wallet:
             return False, "Wallet not found"
         
+        # Check if user has sufficient balance (held balance is not available for contest entry)
+        total_balance = wallet.deposit_balance + wallet.bonus_balance + wallet.winning_balance
+        if total_balance < amount:
+            return False, "Insufficient balance"
+        
+        # Debit in priority order: deposit -> bonus -> winning
         remaining = amount
-        deposit_debit = Decimal('0')
-        bonus_debit = Decimal('0')
-        winning_debit = Decimal('0')
         
-        # Try deposit balance first
+        # First, debit from deposit balance
         if remaining > 0 and wallet.deposit_balance > 0:
-            deposit_debit = min(remaining, wallet.deposit_balance)
-            remaining -= deposit_debit
+            debit_from_deposit = min(remaining, wallet.deposit_balance)
+            wallet.deposit_balance -= debit_from_deposit
+            remaining -= debit_from_deposit
         
-        # Try bonus balance second
+        # Then, debit from bonus balance
         if remaining > 0 and wallet.bonus_balance > 0:
-            bonus_debit = min(remaining, wallet.bonus_balance)
-            remaining -= bonus_debit
+            debit_from_bonus = min(remaining, wallet.bonus_balance)
+            wallet.bonus_balance -= debit_from_bonus
+            remaining -= debit_from_bonus
         
-        # Try winning balance last
+        # Finally, debit from winning balance
         if remaining > 0 and wallet.winning_balance > 0:
-            winning_debit = min(remaining, wallet.winning_balance)
-            remaining -= winning_debit
+            debit_from_winning = min(remaining, wallet.winning_balance)
+            wallet.winning_balance -= debit_from_winning
+            remaining -= debit_from_winning
         
-        # Check if we have enough balance
         if remaining > 0:
-            return False, "Insufficient balance for contest entry"
-        
-        # Update balances
-        wallet.deposit_balance -= deposit_debit
-        wallet.bonus_balance -= bonus_debit
-        wallet.winning_balance -= winning_debit
+            return False, "Insufficient balance after priority deduction"
         
         await session.commit()
+        logger.info(f"Debited {amount} from user {user_id} for contest entry")
         return True, None
         
     except Exception as e:
         await session.rollback()
+        logger.error(f"Error debiting for contest entry for user {user_id}: {str(e)}")
         return False, f"Database error: {str(e)}"
 
 
-async def credit_deposit_atomic(
+async def process_withdrawal_atomic(
     session: AsyncSession,
     user_id: UUID,
-    amount: Decimal,
-    tx_id: Optional[UUID] = None,
-    tx_hash: Optional[str] = None
-) -> Tuple[bool, Optional[str], Optional[Decimal]]:
+    amount: Decimal
+) -> Tuple[bool, Optional[str], Optional[dict]]:
     """
-    Atomically credit user's deposit balance with row-level locking.
-    
-    This function uses SELECT FOR UPDATE to prevent race conditions
-    and ensures atomic balance updates within a single transaction.
+    Process withdrawal with atomic balance deduction using priority order.
     
     Args:
         session: Database session
         user_id: User UUID
-        amount: Amount to credit (must be positive)
-        tx_id: Transaction ID for logging (optional)
-        tx_hash: Transaction hash for logging (optional)
+        amount: Amount to withdraw (must be positive)
     
     Returns:
-        Tuple of (success: bool, error_message: Optional[str], new_balance: Optional[Decimal])
+        Tuple of (success: bool, error_message: Optional[str], deduction_breakdown: Optional[dict])
     """
     try:
         if amount <= 0:
             return False, "Amount must be positive", None
         
-        # Lock the wallet row for update to prevent race conditions
+        # Lock the wallet row for update
         result = await session.execute(
             select(Wallet)
             .where(Wallet.user_id == user_id)
@@ -361,65 +356,83 @@ async def credit_deposit_atomic(
         if not wallet:
             return False, "Wallet not found", None
         
-        # Calculate new deposit balance
-        new_deposit_balance = wallet.deposit_balance + amount
+        # Check if user has sufficient balance
+        total_balance = wallet.deposit_balance + wallet.bonus_balance + wallet.winning_balance
+        if total_balance < amount:
+            return False, "Insufficient balance", None
         
-        # Update deposit balance
-        wallet.deposit_balance = new_deposit_balance
+        # Calculate deduction breakdown with priority: deposit -> winning -> bonus
+        deposit_delta = Decimal('0')
+        winning_delta = Decimal('0')
+        bonus_delta = Decimal('0')
+        
+        remaining_amount = amount
+        
+        # First, deduct from deposit balance
+        if remaining_amount > 0 and wallet.deposit_balance > 0:
+            deduct_from_deposit = min(remaining_amount, wallet.deposit_balance)
+            deposit_delta = -deduct_from_deposit
+            remaining_amount -= deduct_from_deposit
+        
+        # Then, deduct from winning balance
+        if remaining_amount > 0 and wallet.winning_balance > 0:
+            deduct_from_winning = min(remaining_amount, wallet.winning_balance)
+            winning_delta = -deduct_from_winning
+            remaining_amount -= deduct_from_winning
+        
+        # Finally, deduct from bonus balance
+        if remaining_amount > 0 and wallet.bonus_balance > 0:
+            deduct_from_bonus = min(remaining_amount, wallet.bonus_balance)
+            bonus_delta = -deduct_from_bonus
+            remaining_amount -= deduct_from_bonus
+        
+        if remaining_amount > 0:
+            return False, "Insufficient balance after priority deduction", None
+        
+        # Update balances
+        wallet.deposit_balance += deposit_delta
+        wallet.winning_balance += winning_delta
+        wallet.bonus_balance += bonus_delta
         
         await session.commit()
         
-        logger.info(f"Credited {amount} to user {user_id} deposit balance. New balance: {new_deposit_balance}")
-        return True, None, new_deposit_balance
+        deduction_breakdown = {
+            "deposit_delta": str(deposit_delta),
+            "winning_delta": str(winning_delta),
+            "bonus_delta": str(bonus_delta)
+        }
+        
+        logger.info(f"Processed withdrawal for user {user_id}: {amount}")
+        return True, None, deduction_breakdown
         
     except Exception as e:
         await session.rollback()
-        logger.error(f"Error crediting deposit for user {user_id}: {str(e)}")
+        logger.error(f"Error processing withdrawal for user {user_id}: {str(e)}")
         return False, f"Database error: {str(e)}", None
 
 
-async def credit_winning_atomic(
+async def process_withdrawal_hold_atomic(
     session: AsyncSession,
     user_id: UUID,
-    amount: Decimal,
-    reason: str,
-    meta: Optional[dict] = None
-) -> Tuple[bool, Optional[str], Optional[Decimal]]:
+    amount: Decimal
+) -> Tuple[bool, Optional[str]]:
     """
-    Atomically credit user's winning balance with row-level locking.
-    
-    This function uses SELECT FOR UPDATE to prevent race conditions
-    and ensures atomic balance updates within a single transaction.
-    Includes idempotency check via meta["idempotency_key"].
+    Process withdrawal by moving amount from winning balance to held balance.
+    Only winning balance can be withdrawn.
     
     Args:
         session: Database session
         user_id: User UUID
-        amount: Amount to credit (must be positive)
-        reason: Reason for the credit (e.g., "contest_payout")
-        meta: Optional metadata dict with idempotency_key
+        amount: Amount to withdraw (must be positive)
     
     Returns:
-        Tuple of (success: bool, error_message: Optional[str], new_balance: Optional[Decimal])
+        Tuple of (success: bool, error_message: Optional[str])
     """
     try:
         if amount <= 0:
-            return False, "Amount must be positive", None
+            return False, "Amount must be positive"
         
-        # Check for idempotency if idempotency_key provided
-        if meta and meta.get("idempotency_key"):
-            from app.repos.transaction_repo import get_transaction_by_metadata
-            existing_tx = await get_transaction_by_metadata(
-                session, 
-                {"idempotency_key": meta["idempotency_key"]}
-            )
-            if existing_tx:
-                logger.info(f"Idempotent credit skipped for user {user_id} with key {meta['idempotency_key']}")
-                # Return existing balance
-                wallet = await get_wallet_for_user(session, user_id)
-                return True, None, wallet.winning_balance if wallet else Decimal('0')
-        
-        # Lock the wallet row for update to prevent race conditions
+        # Lock the wallet row for update
         result = await session.execute(
             select(Wallet)
             .where(Wallet.user_id == user_id)
@@ -428,31 +441,123 @@ async def credit_winning_atomic(
         wallet = result.scalar_one_or_none()
         
         if not wallet:
-            return False, "Wallet not found", None
+            return False, "Wallet not found"
         
-        # Calculate new winning balance
-        new_winning_balance = wallet.winning_balance + amount
+        # Check if user has sufficient winning balance
+        if wallet.winning_balance < amount:
+            return False, "Insufficient winning balance for withdrawal"
         
-        # Update winning balance
-        wallet.winning_balance = new_winning_balance
+        # Move amount from winning balance to held balance
+        wallet.winning_balance -= amount
+        wallet.held_balance += amount
         
-        logger.info(f"Credited {amount} to user {user_id} winning balance. New balance: {new_winning_balance}")
-        return True, None, new_winning_balance
+        await session.commit()
+        
+        logger.info(f"Withdrawal hold processed for user {user_id}: {amount} moved to held balance")
+        return True, None
         
     except Exception as e:
-        logger.error(f"Error crediting winning balance for user {user_id}: {str(e)}")
-        return False, f"Database error: {str(e)}", None
+        await session.rollback()
+        logger.error(f"Error processing withdrawal hold for user {user_id}: {str(e)}")
+        return False, f"Database error: {str(e)}"
 
 
-async def get_wallet_by_user(session: AsyncSession, user_id: UUID):
+async def release_withdrawal_hold_atomic(
+    session: AsyncSession,
+    user_id: UUID,
+    amount: Decimal
+) -> Tuple[bool, Optional[str]]:
     """
-    Alias for get_wallet_for_user for bot compatibility.
+    Release withdrawal hold by moving amount from held balance back to winning balance.
+    Used when withdrawal is rejected.
     
     Args:
         session: Database session
         user_id: User UUID
+        amount: Amount to release (must be positive)
     
     Returns:
-        Wallet instance or None if not found
+        Tuple of (success: bool, error_message: Optional[str])
     """
-    return await get_wallet_for_user(session, user_id)
+    try:
+        if amount <= 0:
+            return False, "Amount must be positive"
+        
+        # Lock the wallet row for update
+        result = await session.execute(
+            select(Wallet)
+            .where(Wallet.user_id == user_id)
+            .with_for_update()
+        )
+        wallet = result.scalar_one_or_none()
+        
+        if not wallet:
+            return False, "Wallet not found"
+        
+        # Check if user has sufficient held balance
+        if wallet.held_balance < amount:
+            return False, "Insufficient held balance to release"
+        
+        # Move amount from held balance back to winning balance
+        wallet.held_balance -= amount
+        wallet.winning_balance += amount
+        
+        await session.commit()
+        
+        logger.info(f"Withdrawal hold released for user {user_id}: {amount} moved back to winning balance")
+        return True, None
+        
+    except Exception as e:
+        await session.rollback()
+        logger.error(f"Error releasing withdrawal hold for user {user_id}: {str(e)}")
+        return False, f"Database error: {str(e)}"
+
+
+async def complete_withdrawal_atomic(
+    session: AsyncSession,
+    user_id: UUID,
+    amount: Decimal
+) -> Tuple[bool, Optional[str]]:
+    """
+    Complete withdrawal by removing amount from held balance.
+    Used when withdrawal is approved and processed.
+    
+    Args:
+        session: Database session
+        user_id: User UUID
+        amount: Amount to complete (must be positive)
+    
+    Returns:
+        Tuple of (success: bool, error_message: Optional[str])
+    """
+    try:
+        if amount <= 0:
+            return False, "Amount must be positive"
+        
+        # Lock the wallet row for update
+        result = await session.execute(
+            select(Wallet)
+            .where(Wallet.user_id == user_id)
+            .with_for_update()
+        )
+        wallet = result.scalar_one_or_none()
+        
+        if not wallet:
+            return False, "Wallet not found"
+        
+        # Check if user has sufficient held balance
+        if wallet.held_balance < amount:
+            return False, "Insufficient held balance to complete withdrawal"
+        
+        # Remove amount from held balance (withdrawal completed)
+        wallet.held_balance -= amount
+        
+        await session.commit()
+        
+        logger.info(f"Withdrawal completed for user {user_id}: {amount} removed from held balance")
+        return True, None
+        
+    except Exception as e:
+        await session.rollback()
+        logger.error(f"Error completing withdrawal for user {user_id}: {str(e)}")
+        return False, f"Database error: {str(e)}"

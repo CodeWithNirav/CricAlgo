@@ -32,6 +32,15 @@ class Contest(Base):
 
     def to_dict(self):
         """Convert contest to dictionary for API responses"""
+        # Convert prize structure from list format to object format for frontend
+        prize_structure_obj = {}
+        if self.prize_structure and isinstance(self.prize_structure, list):
+            for item in self.prize_structure:
+                if isinstance(item, dict) and 'pos' in item and 'pct' in item:
+                    prize_structure_obj[str(item['pos'])] = item['pct'] / 100.0
+        elif self.prize_structure and isinstance(self.prize_structure, dict):
+            prize_structure_obj = self.prize_structure
+        
         return {
             "id": str(self.id),
             "match_id": str(self.match_id),
@@ -40,7 +49,7 @@ class Contest(Base):
             "entry_fee": str(self.entry_fee),
             "currency": self.currency,
             "max_players": self.max_players,
-            "prize_structure": self.prize_structure,
+            "prize_structure": prize_structure_obj,
             "commission_pct": float(self.commission_pct) if self.commission_pct else 0,
             "join_cutoff": self.join_cutoff.isoformat() if self.join_cutoff else None,
             "status": self.status if self.status else None,

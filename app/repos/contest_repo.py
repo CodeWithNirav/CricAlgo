@@ -55,6 +55,12 @@ async def create_contest(
     else:
         match_uuid = match_id
     
+    from app.core.config import settings
+    
+    # Ensure default prize structure (100% to 1st rank only)
+    if not prize_structure:
+        prize_structure = [{"pos": 1, "pct": 100}]
+    
     contest = Contest(
         match_id=match_uuid,
         code=contest_code,
@@ -62,6 +68,7 @@ async def create_contest(
         entry_fee=entry_fee,
         max_players=max_participants,
         prize_structure=prize_structure,
+        commission_pct=settings.platform_commission_pct,
         status="open"
     )
     session.add(contest)
@@ -177,7 +184,7 @@ async def list_active_contests(session: AsyncSession):
         List of active contest dictionaries
     """
     result = await session.execute(
-        select(Contest).where(Contest.status == ContestStatus.OPEN).order_by(Contest.created_at)
+        select(Contest).where(Contest.status == ContestStatus.OPEN.value).order_by(Contest.created_at)
     )
     contests = result.scalars().all()
     return [contest for contest in contests]
@@ -235,7 +242,7 @@ async def join_contest_atomic(session: AsyncSession, contest_id: str, telegram_i
             return {"ok": False, "error": "Contest not found"}
         
         # Check if contest is still open
-        if contest.status != ContestStatus.OPEN:
+        if contest.status != ContestStatus.OPEN.value:
             return {"ok": False, "error": "Contest is not open"}
         
         # Get user's wallet

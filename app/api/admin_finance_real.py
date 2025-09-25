@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select, update, and_
+from sqlalchemy import select, update, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import get_current_admin
 from app.db.session import get_db
@@ -8,9 +8,17 @@ from app.models.transaction import Transaction
 from app.models.user import User
 from app.models.audit_log import AuditLog
 from app.models.admin import Admin
+from pydantic import BaseModel
 import csv
 import io
 from decimal import Decimal
+
+class ApproveDepositRequest(BaseModel):
+    amount: float
+    note: str = ""
+
+class RejectDepositRequest(BaseModel):
+    note: str = ""
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin_finance_real"])
 
@@ -22,13 +30,31 @@ async def list_deposits(
 ):
     """List deposits from database"""
     try:
-        # Query transactions with type 'deposit' and specified status in metadata
-        stmt = select(Transaction).where(
-            and_(
-                Transaction.tx_type == "deposit",
-                Transaction.tx_metadata["status"].astext == status
-            )
-        ).order_by(Transaction.created_at.desc())
+        # Query transactions with type 'deposit'
+        if status == "all":
+            # Show all deposits regardless of status
+            stmt = select(Transaction).where(
+                Transaction.tx_type == "deposit"
+            ).order_by(Transaction.created_at.desc())
+        elif status == "pending":
+            # Show only pending deposits (no status or status = pending)
+            stmt = select(Transaction).where(
+                and_(
+                    Transaction.tx_type == "deposit",
+                    or_(
+                        Transaction.tx_metadata["status"].as_string() == "pending",
+                        Transaction.tx_metadata["status"].as_string().is_(None)
+                    )
+                )
+            ).order_by(Transaction.created_at.desc())
+        else:
+            # Filter by specific status if provided
+            stmt = select(Transaction).where(
+                and_(
+                    Transaction.tx_type == "deposit",
+                    Transaction.tx_metadata["status"].as_string() == status
+                )
+            ).order_by(Transaction.created_at.desc())
         
         result = await db.execute(stmt)
         transactions = result.scalars().all()
@@ -69,7 +95,7 @@ async def list_deposits(
         
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            status_code=500, 
             detail={"error": f"Failed to fetch deposits: {str(e)}"}
         )
 
@@ -85,7 +111,7 @@ async def list_withdrawals(
         stmt = select(Transaction).where(
             and_(
                 Transaction.tx_type == "withdrawal",
-                Transaction.tx_metadata["status"].astext == status
+                Transaction.tx_metadata["status"].as_string() == status
             )
         ).order_by(Transaction.created_at.desc())
         
@@ -112,7 +138,7 @@ async def list_withdrawals(
                 "telegram_id": tx.tx_metadata.get("telegram_id", "") if tx.tx_metadata else "",
                 "username": tx.tx_metadata.get("username", "") if tx.tx_metadata else "",
                 "amount": str(tx.amount),
-                "address": tx.tx_metadata.get("address", "") if tx.tx_metadata else "",
+                "address": tx.tx_metadata.get("withdrawal_address", "") if tx.tx_metadata else "",
                 "status": tx.tx_metadata.get("status", "pending") if tx.tx_metadata else "pending",
                 "created_at": tx.created_at.isoformat() if tx.created_at else None,
                 "currency": tx.currency
@@ -128,7 +154,7 @@ async def list_withdrawals(
         
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            status_code=500, 
             detail={"error": f"Failed to fetch withdrawals: {str(e)}"}
         )
 
@@ -158,85 +184,11 @@ async def list_audit_logs(
         
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            status_code=500, 
             detail={"error": f"Failed to fetch audit logs: {str(e)}"}
         )
 
-@router.post("/deposits/{deposit_id}/approve")
-async def approve_deposit(
-    deposit_id: str,
-    note: str = "",
-    current_admin: Admin = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db)
-):
-    """Approve a deposit"""
-    try:
-        # Update transaction status in metadata
-        stmt = update(Transaction).where(
-            and_(
-                Transaction.id == deposit_id,
-                Transaction.tx_type == "deposit"
-            )
-        ).values(tx_metadata=Transaction.tx_metadata.op('||')({"status": "confirmed"}))
-        
-        await db.execute(stmt)
-        
-        # Create audit log
-        audit_log = AuditLog(
-            admin_id=current_admin.id,
-            action="approve_deposit",
-            details={"note": note, "transaction_id": deposit_id}
-        )
-        db.add(audit_log)
-        
-        await db.commit()
-        
-        return {"success": True, "message": "Deposit approved successfully"}
-        
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail={"error": f"Failed to approve deposit: {str(e)}"}
-        )
 
-@router.post("/deposits/{deposit_id}/reject")
-async def reject_deposit(
-    deposit_id: str,
-    note: str = "",
-    current_admin: Admin = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db)
-):
-    """Reject a deposit"""
-    try:
-        # Update transaction status in metadata
-        stmt = update(Transaction).where(
-            and_(
-                Transaction.id == deposit_id,
-                Transaction.tx_type == "deposit"
-            )
-        ).values(tx_metadata=Transaction.tx_metadata.op('||')({"status": "rejected"}))
-        
-        await db.execute(stmt)
-        
-        # Create audit log
-        audit_log = AuditLog(
-            admin_id=current_admin.id,
-            action="reject_deposit",
-            details={"note": note, "transaction_id": deposit_id}
-        )
-        db.add(audit_log)
-        
-        await db.commit()
-        
-        return {"success": True, "message": "Deposit rejected successfully"}
-        
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail={"error": f"Failed to reject deposit: {str(e)}"}
-        )
 
 @router.post("/withdrawals/{withdrawal_id}/approve")
 async def approve_withdrawal(
@@ -247,15 +199,60 @@ async def approve_withdrawal(
 ):
     """Approve a withdrawal"""
     try:
-        # Update transaction status in metadata
-        stmt = update(Transaction).where(
+        # Convert string ID to UUID
+        from uuid import UUID
+        try:
+            withdrawal_uuid = UUID(withdrawal_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid withdrawal ID format")
+        
+        # Get current transaction to update metadata
+        stmt = select(Transaction).where(
             and_(
-                Transaction.id == withdrawal_id,
+                Transaction.id == withdrawal_uuid,
                 Transaction.tx_type == "withdrawal"
             )
-        ).values(tx_metadata=Transaction.tx_metadata.op('||')({"status": "confirmed"}))
+        )
+        result = await db.execute(stmt)
+        transaction = result.scalar_one_or_none()
         
-        await db.execute(stmt)
+        if not transaction:
+            raise HTTPException(status_code=404, detail="Withdrawal not found")
+        
+        # Update metadata
+        current_metadata = transaction.tx_metadata or {}
+        current_metadata["status"] = "confirmed"
+        
+        update_stmt = update(Transaction).where(
+            Transaction.id == withdrawal_uuid
+        ).values(tx_metadata=current_metadata)
+        
+        await db.execute(update_stmt)
+        
+        # Log the approval
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Approving withdrawal {withdrawal_id}: status updated to confirmed")
+        
+        # Complete the withdrawal by removing amount from held balance
+        from app.repos.wallet_repo import complete_withdrawal_atomic
+        from decimal import Decimal
+        
+        success, error = await complete_withdrawal_atomic(
+            session=db,
+            user_id=transaction.user_id,
+            amount=Decimal(str(transaction.amount))
+        )
+        
+        if not success:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to complete withdrawal {withdrawal_id}: {error}")
+            raise HTTPException(status_code=500, detail=f"Failed to complete withdrawal: {error}")
+        
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Withdrawal {withdrawal_id} approved and completed - {transaction.amount} removed from held balance")
         
         # Create audit log
         audit_log = AuditLog(
@@ -282,7 +279,7 @@ async def approve_withdrawal(
     except Exception as e:
         await db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            status_code=500, 
             detail={"error": f"Failed to approve withdrawal: {str(e)}"}
         )
 
@@ -295,15 +292,53 @@ async def reject_withdrawal(
 ):
     """Reject a withdrawal"""
     try:
-        # Update transaction status in metadata
-        stmt = update(Transaction).where(
+        # Convert string ID to UUID
+        from uuid import UUID
+        try:
+            withdrawal_uuid = UUID(withdrawal_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid withdrawal ID format")
+        
+        # Get current transaction to update metadata
+        stmt = select(Transaction).where(
             and_(
-                Transaction.id == withdrawal_id,
+                Transaction.id == withdrawal_uuid,
                 Transaction.tx_type == "withdrawal"
             )
-        ).values(tx_metadata=Transaction.tx_metadata.op('||')({"status": "rejected"}))
+        )
+        result = await db.execute(stmt)
+        transaction = result.scalar_one_or_none()
         
-        await db.execute(stmt)
+        if not transaction:
+            raise HTTPException(status_code=404, detail="Withdrawal not found")
+        
+        # Update metadata
+        current_metadata = transaction.tx_metadata or {}
+        current_metadata["status"] = "rejected"
+        
+        update_stmt = update(Transaction).where(
+            Transaction.id == withdrawal_uuid
+        ).values(tx_metadata=current_metadata)
+        
+        await db.execute(update_stmt)
+        
+        # Release the held balance back to winning balance
+        from app.repos.wallet_repo import release_withdrawal_hold_atomic
+        from decimal import Decimal
+
+        success, error = await release_withdrawal_hold_atomic(
+            session=db,
+            user_id=transaction.user_id,
+            amount=Decimal(str(transaction.amount))
+        )
+
+        if not success:
+            # Log the error but don't fail the rejection
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to release held balance for rejected withdrawal {withdrawal_id}: {error}")
+        else:
+            logger.info(f"Held balance released for rejected withdrawal {withdrawal_id}: {transaction.amount} USDT moved back to winning balance")
         
         # Create audit log
         audit_log = AuditLog(
@@ -320,6 +355,148 @@ async def reject_withdrawal(
     except Exception as e:
         await db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            status_code=500, 
             detail={"error": f"Failed to reject withdrawal: {str(e)}"}
+        )
+
+
+@router.post("/deposits/{deposit_id}/approve")
+async def approve_deposit(
+    deposit_id: str,
+    request: ApproveDepositRequest,
+    current_admin: Admin = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Approve a manual deposit"""
+    try:
+        # Get the deposit transaction
+        stmt = select(Transaction).where(
+            and_(
+                Transaction.id == deposit_id,
+                Transaction.tx_type == "deposit"
+            )
+        )
+        result = await db.execute(stmt)
+        transaction = result.scalar_one_or_none()
+        
+        if not transaction:
+            raise HTTPException(
+                status_code=404,
+                detail="Deposit not found"
+            )
+        
+        # Update transaction amount and status
+        transaction.amount = Decimal(str(request.amount))
+        
+        # Update metadata using the same pattern as withdrawal approval
+        current_metadata = transaction.tx_metadata or {}
+        current_metadata["status"] = "approved"
+        current_metadata["approved_by"] = str(current_admin.id)
+        current_metadata["approved_amount"] = str(request.amount)
+        current_metadata["approval_note"] = request.note
+        
+        update_stmt = update(Transaction).where(
+            Transaction.id == deposit_id
+        ).values(amount=transaction.amount, tx_metadata=current_metadata)
+        
+        await db.execute(update_stmt)
+        
+        # Update user wallet balance
+        from app.repos.wallet_repo import get_wallet_for_user, update_balances_atomic
+        wallet = await get_wallet_for_user(db, transaction.user_id)
+        if wallet:
+            success, error = await update_balances_atomic(
+                db,
+                transaction.user_id,
+                deposit_delta=Decimal(str(request.amount))
+            )
+            if not success:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to update wallet: {error}"
+                )
+        
+        # Create audit log
+        audit_log = AuditLog(
+            admin_id=current_admin.id,
+            action="approve_deposit",
+            details={
+                "deposit_id": str(deposit_id),
+                "amount": str(request.amount),
+                "note": request.note,
+                "user_id": str(transaction.user_id)
+            }
+        )
+        db.add(audit_log)
+        
+        await db.commit()
+        
+        return {"success": True, "message": "Deposit approved successfully"}
+        
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to approve deposit: {str(e)}"
+        )
+
+
+@router.post("/deposits/{deposit_id}/reject")
+async def reject_deposit(
+    deposit_id: str,
+    request: RejectDepositRequest,
+    current_admin: Admin = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Reject a manual deposit"""
+    try:
+        # Get the deposit transaction
+        stmt = select(Transaction).where(
+            and_(
+                Transaction.id == deposit_id,
+                Transaction.tx_type == "deposit"
+            )
+        )
+        result = await db.execute(stmt)
+        transaction = result.scalar_one_or_none()
+        
+        if not transaction:
+            raise HTTPException(
+                status_code=404,
+                detail="Deposit not found"
+            )
+        
+        # Update metadata
+        current_metadata = transaction.tx_metadata or {}
+        current_metadata["status"] = "rejected"
+        current_metadata["rejected_by"] = str(current_admin.id)
+        current_metadata["rejection_note"] = request.note
+        
+        update_stmt = update(Transaction).where(
+            Transaction.id == deposit_id
+        ).values(tx_metadata=current_metadata)
+        
+        await db.execute(update_stmt)
+        
+        # Create audit log
+        audit_log = AuditLog(
+            admin_id=current_admin.id,
+            action="reject_deposit",
+            details={
+                "deposit_id": str(deposit_id),
+                "note": request.note,
+                "user_id": str(transaction.user_id)
+            }
+        )
+        db.add(audit_log)
+        
+        await db.commit()
+        
+        return {"success": True, "message": "Deposit rejected successfully"}
+        
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to reject deposit: {str(e)}"
         )

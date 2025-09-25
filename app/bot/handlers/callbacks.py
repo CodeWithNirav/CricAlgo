@@ -57,16 +57,6 @@ async def join_contest_callback(callback_query: CallbackQuery):
         contest_id_str = callback_query.data.split(":", 1)[1]
         contest_id = contest_id_str
         
-        # Create idempotency key
-        operation_key = f"join_contest_{contest_id}"
-        
-        # Check idempotency
-        if await is_idempotent_operation(operation_key, callback_query.from_user.id):
-            await callback_query.message.edit_text(
-                "⚠️ You have already joined this contest or the request is being processed."
-            )
-            return
-        
         async with async_session() as session:
             # Get user
             user = await get_user_by_telegram_id(session, callback_query.from_user.id)
@@ -89,16 +79,6 @@ async def join_contest_callback(callback_query: CallbackQuery):
             if contest.status != "open":
                 await callback_query.message.edit_text(
                     f"❌ Contest is {contest.status} and cannot be joined."
-                )
-                return
-            
-            # Check if user already joined
-            existing_entries = await get_contest_entries(
-                session, UUID(contest_id), user_id=user.id, limit=1
-            )
-            if existing_entries:
-                await callback_query.message.edit_text(
-                    "⚠️ You have already joined this contest."
                 )
                 return
             
@@ -129,6 +109,16 @@ async def join_contest_callback(callback_query: CallbackQuery):
                 )
                 return
             
+            # Check if user already joined (database check)
+            existing_entries = await get_contest_entries(
+                session, UUID(contest_id), user_id=user.id, limit=1
+            )
+            if existing_entries:
+                await callback_query.message.edit_text(
+                    "⚠️ You have already joined this contest."
+                )
+                return
+            
             # Debit wallet for contest entry
             success, error_msg = await debit_for_contest_entry(
                 session, user.id, contest.entry_fee
@@ -140,6 +130,16 @@ async def join_contest_callback(callback_query: CallbackQuery):
                 )
                 return
             
+            # Set idempotency key ONLY after successful wallet debit
+            operation_key = f"join_contest_{contest_id}"
+            try:
+                redis_client = await get_redis_client()
+                key = f"bot_operation:{operation_key}:{callback_query.from_user.id}"
+                await redis_client.setex(key, 300, "processed")
+            except Exception as e:
+                logger.error(f"Error setting idempotency key: {e}")
+                # Continue even if Redis fails
+            
             # Create contest entry
             entry = await create_contest_entry(
                 session, UUID(contest_id), user.id, contest.entry_fee
@@ -147,11 +147,13 @@ async def join_contest_callback(callback_query: CallbackQuery):
             
             # Success message
             success_text = (
-                f"✅ Successfully joined contest!\n\n"
-                f"🏏 Contest: {contest.title}\n"
-                f"💰 Entry Fee: {contest.entry_fee} {contest.currency}\n"
-                f"🆔 Entry ID: {entry.id}\n\n"
-                f"Good luck! 🍀"
+                f"🎉 *Successfully joined contest!*\n\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"🏏 *Contest:* {contest.title}\n"
+                f"💰 *Entry Fee:* `{contest.entry_fee} {contest.currency}`\n"
+                f"🆔 *Entry ID:* `{entry.id}`\n\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"🍀 *Good luck!* 🍀"
             )
             
             # Add keyboard with options
@@ -161,7 +163,7 @@ async def join_contest_callback(callback_query: CallbackQuery):
                 [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
             ])
             
-            await callback_query.message.edit_text(success_text, reply_markup=keyboard)
+            await callback_query.message.edit_text(success_text, reply_markup=keyboard, parse_mode="Markdown")
             
     except ValueError as e:
         logger.error(f"Invalid contest ID format: {e}")
@@ -171,7 +173,13 @@ async def join_contest_callback(callback_query: CallbackQuery):
     except Exception as e:
         logger.error(f"Error joining contest: {e}")
         await callback_query.message.edit_text(
-            "❌ An error occurred while joining the contest. Please try again later."
+            "❌ An error occurred while joining the contest.\n\n"
+            "Please try again or contact support if the issue persists.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔄 Try Again", callback_data=f"join_contest:{contest_id_str}")],
+                [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")],
+                [InlineKeyboardButton(text="🆘 Contact Support", callback_data="support")]
+            ])
         )
 
 
@@ -200,16 +208,16 @@ async def view_my_contests_callback(callback_query: CallbackQuery):
                 )
                 return
             
-            contests_text = "🏏 Your Contest Entries\n\n"
+            contests_text = "🏏 *Your Contest Entries*\n\n"
             
             for entry in entries:
                 contest = await get_contest_by_id(session, entry.contest_id)
                 if contest:
                     contests_text += (
-                        f"🎯 {contest.title}\n"
-                        f"💰 Entry Fee: {entry.entry_fee} {contest.currency}\n"
-                        f"📅 Joined: {entry.created_at.strftime('%Y-%m-%d %H:%M')}\n"
-                        f"📊 Status: {contest.status.title()}\n\n"
+                        f"🎯 *{contest.title}*\n"
+                        f"💰 Entry Fee: `{entry.entry_fee} {contest.currency}`\n"
+                        f"📅 Joined: `{entry.created_at.strftime('%Y-%m-%d %H:%M')}`\n"
+                        f"📊 Status: *{contest.status.title()}*\n\n"
                     )
             
             # Add back button
@@ -217,12 +225,18 @@ async def view_my_contests_callback(callback_query: CallbackQuery):
                 [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
             ])
             
-            await callback_query.message.edit_text(contests_text, reply_markup=keyboard)
+            await callback_query.message.edit_text(contests_text, reply_markup=keyboard, parse_mode="Markdown")
             
     except Exception as e:
         logger.error(f"Error viewing user contests: {e}")
         await callback_query.message.edit_text(
-            "❌ An error occurred while retrieving your contests. Please try again later."
+            "❌ An error occurred while retrieving your contests.\n\n"
+            "Please try again or contact support if the issue persists.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔄 Try Again", callback_data="my_contests")],
+                [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")],
+                [InlineKeyboardButton(text="🆘 Contact Support", callback_data="support")]
+            ])
         )
 
 
@@ -265,18 +279,24 @@ async def contest_details_callback(callback_query: CallbackQuery):
             # Format start time
             start_time = contest.start_time.strftime('%Y-%m-%d %H:%M UTC') if contest.start_time else "TBD"
             
+            # Calculate prize pool
+            prize_pool = contest.entry_fee * entry_count
+            
             # Contest details text
             details_text = (
-                f"🏏 Contest Details\n\n"
-                f"🎯 Title: {contest.title}\n"
-                f"💰 Entry Fee: {contest.entry_fee} {contest.currency}\n"
-                f"👥 Players: {entry_count}/{contest.max_players or '∞'}\n"
-                f"📅 Start Time: {start_time}\n"
-                f"📊 Status: {contest.status.title()}\n\n"
+                f"🏏 *Contest Details*\n\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"🎯 *Title:* {contest.title}\n"
+                f"💰 *Entry Fee:* `{contest.entry_fee} {contest.currency}`\n"
+                f"🏆 *Prize Pool:* `{prize_pool} {contest.currency}`\n"
+                f"👥 *Players:* `{entry_count}/{contest.max_players or '∞'}`\n"
+                f"📅 *Start Time:* `{start_time}`\n"
+                f"📊 *Status:* *{contest.status.title()}*\n\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"{prize_info}\n"
-                f"📝 Description:\n"
+                f"📝 *Description:*\n"
                 f"{contest.description or 'No description available.'}\n\n"
-                f"⚠️ Rules:\n"
+                f"⚠️ *Rules:*\n"
                 f"• Entry fee will be deducted from your wallet\n"
                 f"• Prizes are distributed after contest completion\n"
                 f"• All decisions are final"
@@ -315,7 +335,7 @@ async def contest_details_callback(callback_query: CallbackQuery):
             
             keyboard = InlineKeyboardMarkup(inline_keyboard=action_buttons)
             
-            await callback_query.message.edit_text(details_text, reply_markup=keyboard)
+            await callback_query.message.edit_text(details_text, reply_markup=keyboard, parse_mode="Markdown")
             
     except ValueError as e:
         logger.error(f"Invalid contest ID format: {e}")
@@ -325,7 +345,13 @@ async def contest_details_callback(callback_query: CallbackQuery):
     except Exception as e:
         logger.error(f"Error showing contest details: {e}")
         await callback_query.message.edit_text(
-            "❌ An error occurred while retrieving contest details. Please try again later."
+            "❌ An error occurred while retrieving contest details.\n\n"
+            "Please try again or contact support if the issue persists.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔄 Try Again", callback_data="contests")],
+                [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")],
+                [InlineKeyboardButton(text="🆘 Contact Support", callback_data="support")]
+            ])
         )
 
 
@@ -415,22 +441,26 @@ async def support_callback(callback_query: CallbackQuery):
     await callback_query.answer()
     
     support_text = (
-        "🆘 Support\n\n"
+        "🆘 *Support*\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         "Need help? Here are your options:\n\n"
-        "📧 Email: support@cricalgo.com\n"
-        "💬 Telegram: @CricAlgoSupport\n"
-        "🌐 Website: https://cricalgo.com/support\n\n"
-        "Common issues:\n"
+        "📧 *Email:* support@cricalgo.com\n"
+        "💬 *Telegram:* @CricAlgoSupport\n"
+        "🌐 *Website:* https://cricalgo.com/support\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "🔧 *Common Issues:*\n"
         "• Balance not updating: Wait for blockchain confirmation\n"
         "• Can't join contest: Check your balance and contest status\n"
-        "• Withdrawal issues: Contact support with your user ID"
+        "• Withdrawal issues: Contact support with your user ID\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "💡 *Tip:* Use /menu for quick access to all features!"
     )
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
     ])
     
-    await callback_query.message.edit_text(support_text, reply_markup=keyboard)
+    await callback_query.message.edit_text(support_text, reply_markup=keyboard, parse_mode="Markdown")
 
 
 @callback_router.callback_query(F.data == "settings")
@@ -448,20 +478,23 @@ async def settings_callback(callback_query: CallbackQuery):
                 return
             
             settings_text = (
-                f"⚙️ Settings\n\n"
-                f"👤 Username: {user.username}\n"
-                f"🆔 User ID: {user.id}\n"
-                f"📱 Telegram ID: {user.telegram_id}\n"
-                f"📊 Status: {user.status.value.title()}\n"
-                f"📅 Member since: {user.created_at.strftime('%Y-%m-%d')}\n\n"
-                f"💡 Your account information is secure and encrypted."
+                f"⚙️ *Settings*\n\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"👤 *Username:* {user.username}\n"
+                f"🆔 *User ID:* `{user.id}`\n"
+                f"📱 *Telegram ID:* `{user.telegram_id}`\n"
+                f"📊 *Status:* *{user.status.value.title()}*\n"
+                f"📅 *Member since:* `{user.created_at.strftime('%Y-%m-%d')}`\n\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"🔒 *Your account information is secure and encrypted.*\n\n"
+                f"💡 *Tip:* Use the menu below for quick navigation!"
             )
             
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
             ])
             
-            await callback_query.message.edit_text(settings_text, reply_markup=keyboard)
+            await callback_query.message.edit_text(settings_text, reply_markup=keyboard, parse_mode="Markdown")
             
     except Exception as e:
         logger.error(f"Error showing settings: {e}")

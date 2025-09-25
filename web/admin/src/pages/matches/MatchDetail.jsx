@@ -33,7 +33,7 @@ export default function MatchDetail({matchId}){
                 title: title,
                 entry_fee: entryFee,
                 max_players: parseInt(maxPlayers),
-                prize_structure: {"1": 0.6, "2": 0.4}
+                prize_structure: [{"pos": 1, "pct": 100}]
               })
             })
             .then(r => {
@@ -50,7 +50,9 @@ export default function MatchDetail({matchId}){
               window.location.reload();
             })
             .catch(err => {
-              alert("Error creating contest: " + err.message);
+              console.error("Contest creation error:", err);
+              const errorMessage = err.message || err.toString() || "Unknown error occurred";
+              alert("Error creating contest: " + errorMessage);
             });
           }
         }}

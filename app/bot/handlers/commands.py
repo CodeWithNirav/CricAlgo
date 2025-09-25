@@ -16,9 +16,10 @@ from app.db.session import async_session
 from app.repos.user_repo import get_user_by_telegram_id, create_user, save_chat_id
 from app.repos.wallet_repo import get_wallet_for_user, create_wallet_for_user
 from app.repos.contest_repo import get_contests
+from app.repos.contest_entry_repo import get_contest_entries
 from app.repos.invite_code_repo import validate_and_use_code
 from app.repos.deposit_repo import generate_deposit_reference, get_deposit_address_for_user, subscribe_to_deposit_notifications
-from app.repos.withdrawal_repo import create_withdrawal, get_withdrawal
+# Removed old withdrawal_repo imports - now using transaction-based approach
 from app.models.enums import UserStatus
 
 logger = logging.getLogger(__name__)
@@ -29,33 +30,27 @@ user_router = Router()
 # States for user interactions
 class UserStates(StatesGroup):
     waiting_for_deposit_amount = State()
+    waiting_for_deposit_tx_hash = State()
     waiting_for_withdrawal_amount = State()
     waiting_for_withdrawal_address = State()
 
 
-@user_router.message(Command("start"))
-async def start_command(message: Message):
-    """Handle /start command - register user if not exists, optionally with invite code"""
+async def handle_user_start(telegram_id: int, username: str, chat_id: int, invite_code: str = None, message: Message = None):
+    """Handle user start logic - can be called from message or callback"""
     try:
-        # Extract invite code from command if present
-        invite_code = None
-        if len(message.text.split()) > 1:
-            invite_code = message.text.split()[1]
-        
         async with async_session() as session:
             # Check if user exists
-            user = await get_user_by_telegram_id(session, message.from_user.id)
+            user = await get_user_by_telegram_id(session, telegram_id)
             
             # Save chat ID for notifications
             if user:
-                await save_chat_id(session, user.id, str(message.chat.id))
+                await save_chat_id(session, user.id, str(chat_id))
             
             if not user:
                 # Create new user
-                username = message.from_user.username or f"user_{message.from_user.id}"
                 user = await create_user(
                     session=session,
-                    telegram_id=message.from_user.id,
+                    telegram_id=telegram_id,
                     username=username,
                     status=UserStatus.ACTIVE
                 )
@@ -64,7 +59,7 @@ async def start_command(message: Message):
                 wallet = await create_wallet_for_user(session, user.id)
                 
                 # Save chat ID for notifications
-                await save_chat_id(session, user.id, str(message.chat.id))
+                await save_chat_id(session, user.id, str(chat_id))
                 
                 # Handle invite code if provided
                 bonus_text = ""
@@ -90,19 +85,28 @@ async def start_command(message: Message):
                         return
                 
                 welcome_text = (
-                    f"Welcome to CricAlgo! 🏏\n\n"
-                    f"Hello {user.username}! Your account has been created successfully.\n"
-                    f"Use /balance to check your wallet balance.\n"
-                    f"Use /contests to see available contests.\n"
-                    f"Use /help for more commands.{bonus_text}"
+                    f"🎉 *Welcome to CricAlgo!* 🏏\n\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"👋 Hello *{user.username}*! Your account has been created successfully.\n\n"
+                    f"🚀 *Quick Start:*\n"
+                    f"💰 Use /balance to check your wallet\n"
+                    f"🏏 Use /contests to see available contests\n"
+                    f"❓ Use /help for more commands\n\n"
+                    f"{bonus_text}\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"💡 *Tip:* Use the menu below for easy navigation!"
                 )
             else:
                 welcome_text = (
-                    f"Welcome back to CricAlgo! 🏏\n\n"
-                    f"Hello {user.username}!\n"
-                    f"Use /balance to check your wallet balance.\n"
-                    f"Use /contests to see available contests.\n"
-                    f"Use /help for more commands."
+                    f"👋 *Welcome back to CricAlgo!* 🏏\n\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"Hello *{user.username}*!\n\n"
+                    f"🚀 *Quick Actions:*\n"
+                    f"💰 Use /balance to check your wallet\n"
+                    f"🏏 Use /contests to see available contests\n"
+                    f"❓ Use /help for more commands\n\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"💡 *Tip:* Use the menu below for easy navigation!"
                 )
             
             # Add main menu keyboard
@@ -110,15 +114,46 @@ async def start_command(message: Message):
                 [InlineKeyboardButton(text="💰 Balance", callback_data="balance")],
                 [InlineKeyboardButton(text="💳 Deposit", callback_data="deposit")],
                 [InlineKeyboardButton(text="🏏 Contests", callback_data="contests")],
+                [InlineKeyboardButton(text="📊 My Contests", callback_data="my_contests")],
                 [InlineKeyboardButton(text="💸 Withdraw", callback_data="withdraw")],
-                [InlineKeyboardButton(text="⚙️ Settings", callback_data="settings")]
+                [InlineKeyboardButton(text="⚙️ Settings", callback_data="settings")],
+                [InlineKeyboardButton(text="🆘 Support", callback_data="support")]
             ])
             
-            await message.answer(welcome_text, reply_markup=keyboard)
+            if message:
+                await message.answer(welcome_text, reply_markup=keyboard, parse_mode="Markdown")
+            return welcome_text, keyboard
             
     except Exception as e:
         logger.error(f"Error in start command: {e}")
-        await message.answer("Sorry, there was an error. Please try again later.")
+        error_text = (
+            "❌ Sorry, there was an error starting your account.\n\n"
+            "Please try again or contact support if the issue persists."
+        )
+        error_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔄 Try Again", callback_data="start_without_code")],
+            [InlineKeyboardButton(text="🆘 Contact Support", callback_data="support")]
+        ])
+        if message:
+            await message.answer(error_text, reply_markup=error_keyboard)
+        return error_text, error_keyboard
+
+
+@user_router.message(Command("start"))
+async def start_command(message: Message):
+    """Handle /start command - register user if not exists, optionally with invite code"""
+    # Extract invite code from command if present
+    invite_code = None
+    if len(message.text.split()) > 1:
+        invite_code = message.text.split()[1]
+    
+    await handle_user_start(
+        telegram_id=message.from_user.id,
+        username=message.from_user.username or f"user_{message.from_user.id}",
+        chat_id=message.chat.id,
+        invite_code=invite_code,
+        message=message
+    )
 
 
 @user_router.message(Command("balance"))
@@ -141,12 +176,18 @@ async def balance_command(message: Message):
                 # Create wallet if it doesn't exist
                 wallet = await create_wallet_for_user(session, user.id)
             
+            total_balance = wallet.deposit_balance + wallet.winning_balance + wallet.bonus_balance
             balance_text = (
-                f"💰 Your Wallet Balance\n\n"
-                f"💳 Deposit Balance: {wallet.deposit_balance} {settings.currency}\n"
-                f"🏆 Winning Balance: {wallet.winning_balance} {settings.currency}\n"
-                f"🎁 Bonus Balance: {wallet.bonus_balance} {settings.currency}\n\n"
-                f"💵 Total Balance: {wallet.deposit_balance + wallet.winning_balance + wallet.bonus_balance} {settings.currency}"
+                f"💰 *Your Wallet Balance*\n\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"💳 *Deposit Balance:* `{wallet.deposit_balance} {settings.currency}`\n"
+                f"🏆 *Winning Balance:* `{wallet.winning_balance} {settings.currency}`\n"
+                f"🎁 *Bonus Balance:* `{wallet.bonus_balance} {settings.currency}`\n"
+                f"🔒 *Held Balance:* `{wallet.held_balance} {settings.currency}`\n\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"💵 *Total Balance:* `{total_balance} {settings.currency}`\n\n"
+                f"💡 *Tip:* Use the buttons below to manage your funds!\n"
+                f"🔒 *Held Balance:* Amount pending withdrawal approval"
             )
             
             # Add deposit button
@@ -154,16 +195,24 @@ async def balance_command(message: Message):
                 [InlineKeyboardButton(text="💳 Deposit", callback_data="deposit")]
             ])
             
-            await message.answer(balance_text, reply_markup=keyboard)
+            await message.answer(balance_text, reply_markup=keyboard, parse_mode="Markdown")
             
     except Exception as e:
         logger.error(f"Error in balance command: {e}")
-        await message.answer("Sorry, there was an error retrieving your balance. Please try again later.")
+        await message.answer(
+            "❌ Sorry, there was an error retrieving your balance.\n\n"
+            "Please try again or contact support if the issue persists.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔄 Try Again", callback_data="balance")],
+                [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")],
+                [InlineKeyboardButton(text="🆘 Contact Support", callback_data="support")]
+            ])
+        )
 
 
 @user_router.message(Command("deposit"))
 async def deposit_command(message: Message, state: FSMContext):
-    """Handle /deposit command - show deposit instructions with per-user address"""
+    """Handle /deposit command - show deposit instructions and start manual flow"""
     try:
         async with async_session() as session:
             user = await get_user_by_telegram_id(session, message.from_user.id)
@@ -177,25 +226,26 @@ async def deposit_command(message: Message, state: FSMContext):
             deposit_reference = await generate_deposit_reference(session, user.id)
             
             deposit_text = (
-                f"💳 Deposit Instructions\n\n"
-                f"To deposit funds to your CricAlgo wallet:\n\n"
-                f"📍 Deposit Address:\n"
+                f"💳 *Manual Deposit Process*\n\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"📍 *Deposit Address:*\n"
                 f"`{deposit_address}`\n\n"
-                f"🏷️ Deposit Reference (Memo):\n"
+                f"🏷️ *Deposit Reference (Memo):*\n"
                 f"`{deposit_reference}`\n\n"
-                f"📋 Instructions:\n"
-                f"1. Send USDT to the address above\n"
-                f"2. Use the deposit reference as memo\n"
-                f"3. Minimum deposit: 10 USDT\n"
-                f"4. Network: TRC20 (Tron)\n\n"
-                f"⚠️ Important: Only send USDT (TRC20) to this address!\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"📋 *Step-by-Step Instructions:*\n"
+                f"1️⃣ Send USDT to the address above\n"
+                f"2️⃣ Use the deposit reference as memo\n"
+                f"3️⃣ Minimum deposit: *No minimum*\n"
+                f"4️⃣ Network: *BEP20 (BSC)*\n\n"
+                f"⚠️ *Important:* Only send USDT (BEP20) to this address!\n"
                 f"Other tokens will be lost permanently.\n\n"
-                f"Your balance will be updated automatically once confirmed."
+                f"✅ After sending, click 'I Sent USDT' to submit your transaction hash for manual approval."
             )
             
-            # Add notification subscription and other buttons
+            # Add manual deposit flow buttons
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🔔 Notify me when confirmed", callback_data="subscribe_deposit_notifications")],
+                [InlineKeyboardButton(text="✅ I Sent USDT", callback_data="submit_deposit_tx")],
                 [InlineKeyboardButton(text="💰 Check Balance", callback_data="balance")],
                 [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
             ])
@@ -204,7 +254,15 @@ async def deposit_command(message: Message, state: FSMContext):
             
     except Exception as e:
         logger.error(f"Error in deposit command: {e}")
-        await message.answer("Sorry, there was an error. Please try again later.")
+        await message.answer(
+            "❌ Sorry, there was an error retrieving deposit information.\n\n"
+            "Please try again or contact support if the issue persists.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔄 Try Again", callback_data="deposit")],
+                [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")],
+                [InlineKeyboardButton(text="🆘 Contact Support", callback_data="support")]
+            ])
+        )
 
 
 @user_router.message(Command("contests"))
@@ -228,7 +286,7 @@ async def contests_command(message: Message):
                 await message.answer("No contests available at the moment. Check back later!")
                 return
             
-            contests_text = "🏏 Available Contests\n\n"
+            contests_text = "🏏 *Available Contests*\n\n"
             keyboard_buttons = []
             
             for contest in contests:
@@ -238,10 +296,10 @@ async def contests_command(message: Message):
                 entry_count = len(current_entries)
                 
                 contests_text += (
-                    f"🎯 {contest.title}\n"
-                    f"💰 Entry Fee: {contest.entry_fee} {contest.currency}\n"
-                    f"👥 Players: {entry_count}/{contest.max_players or '∞'}\n"
-                    f"📅 Status: {contest.status.title()}\n\n"
+                    f"🎯 *{contest.title}*\n"
+                    f"💰 Entry Fee: `{contest.entry_fee} {contest.currency}`\n"
+                    f"👥 Players: `{entry_count}/{contest.max_players or '∞'}`\n"
+                    f"📅 Status: *{contest.status.title()}*\n\n"
                 )
                 
                 # Add buttons for each contest
@@ -273,11 +331,19 @@ async def contests_command(message: Message):
             
             keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
             
-            await message.answer(contests_text, reply_markup=keyboard)
+            await message.answer(contests_text, reply_markup=keyboard, parse_mode="Markdown")
             
     except Exception as e:
         logger.error(f"Error in contests command: {e}")
-        await message.answer("Sorry, there was an error retrieving contests. Please try again later.")
+        await message.answer(
+            "❌ Sorry, there was an error retrieving contests.\n\n"
+            "Please try again or contact support if the issue persists.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔄 Try Again", callback_data="contests")],
+                [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")],
+                [InlineKeyboardButton(text="🆘 Contact Support", callback_data="support")]
+            ])
+        )
 
 
 @user_router.message(Command("withdraw"))
@@ -314,12 +380,14 @@ async def withdraw_command(message: Message, state: FSMContext):
             
             # Show withdrawal amount options
             withdraw_text = (
-                f"💸 Withdrawal Request\n\n"
-                f"💰 Available Balance: {total_balance} {settings.currency}\n"
-                f"💳 Deposit Balance: {wallet.deposit_balance} {settings.currency}\n"
-                f"🏆 Winning Balance: {wallet.winning_balance} {settings.currency}\n"
-                f"🎁 Bonus Balance: {wallet.bonus_balance} {settings.currency}\n\n"
-                f"Choose withdrawal amount:"
+                f"💸 *Withdrawal Request*\n\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"💰 *Available Balance:* `{total_balance} {settings.currency}`\n"
+                f"💳 *Deposit Balance:* `{wallet.deposit_balance} {settings.currency}`\n"
+                f"🏆 *Winning Balance:* `{wallet.winning_balance} {settings.currency}`\n"
+                f"🎁 *Bonus Balance:* `{wallet.bonus_balance} {settings.currency}`\n\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"💡 *Choose withdrawal amount:*"
             )
             
             # Create amount selection keyboard
@@ -351,11 +419,19 @@ async def withdraw_command(message: Message, state: FSMContext):
             
             keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
             
-            await message.answer(withdraw_text, reply_markup=keyboard)
+            await message.answer(withdraw_text, reply_markup=keyboard, parse_mode="Markdown")
             
     except Exception as e:
         logger.error(f"Error in withdraw command: {e}")
-        await message.answer("Sorry, there was an error. Please try again later.")
+        await message.answer(
+            "❌ Sorry, there was an error processing your withdrawal request.\n\n"
+            "Please try again or contact support if the issue persists.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔄 Try Again", callback_data="withdraw")],
+                [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")],
+                [InlineKeyboardButton(text="🆘 Contact Support", callback_data="support")]
+            ])
+        )
 
 
 @user_router.message(Command("menu"))
@@ -374,54 +450,103 @@ async def menu_command(message: Message):
                 [InlineKeyboardButton(text="💰 Balance", callback_data="balance")],
                 [InlineKeyboardButton(text="💳 Deposit", callback_data="deposit")],
                 [InlineKeyboardButton(text="🏏 Contests", callback_data="contests")],
+                [InlineKeyboardButton(text="📊 My Contests", callback_data="my_contests")],
                 [InlineKeyboardButton(text="💸 Withdraw", callback_data="withdraw")],
-                [InlineKeyboardButton(text="⚙️ Settings", callback_data="settings")]
+                [InlineKeyboardButton(text="⚙️ Settings", callback_data="settings")],
+                [InlineKeyboardButton(text="🆘 Support", callback_data="support")]
             ])
             
-            await message.answer("🏠 Main Menu\n\nChoose an option:", reply_markup=keyboard)
+            await message.answer("🏠 *Main Menu*\n\nChoose an option:", reply_markup=keyboard, parse_mode="Markdown")
             
     except Exception as e:
         logger.error(f"Error in menu command: {e}")
-        await message.answer("Sorry, there was an error. Please try again later.")
+        await message.answer(
+            "❌ Sorry, there was an error loading the menu.\n\n"
+            "Please try again or contact support if the issue persists.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔄 Try Again", callback_data="main_menu")],
+                [InlineKeyboardButton(text="🆘 Contact Support", callback_data="support")]
+            ])
+        )
 
 
 @user_router.message(Command("help"))
 async def help_command(message: Message):
     """Handle /help command - show available commands"""
     help_text = (
-        "🤖 CricAlgo Bot Commands\n\n"
-        "/start [code] - Register or login to your account (optional invite code)\n"
-        "/menu - Show main menu\n"
-        "/balance - Check your wallet balance\n"
-        "/deposit - Get deposit instructions\n"
-        "/contests - View available contests\n"
-        "/withdraw - Request withdrawal\n"
-        "/help - Show this help message\n\n"
-        "💡 Tips:\n"
+        "🤖 *CricAlgo Bot Commands*\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "🚀 *Main Commands:*\n"
+        "`/start [code]` - Register or login (optional invite code)\n"
+        "`/menu` - Show main menu\n"
+        "`/balance` - Check your wallet balance\n"
+        "`/deposit` - Get deposit instructions\n"
+        "`/contests` - View available contests\n"
+        "`/withdraw` - Request withdrawal\n"
+        "`/help` - Show this help message\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "💡 *Pro Tips:*\n"
         "• Use inline buttons for quick actions\n"
         "• Check your balance before joining contests\n"
-        "• Contact support if you need help"
+        "• Contact support if you need help\n"
+        "• Use /menu for easy navigation\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "🎯 *Ready to start?* Use the buttons below!"
     )
     
-    await message.answer(help_text)
+    # Add help menu keyboard
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")],
+        [InlineKeyboardButton(text="💰 Check Balance", callback_data="balance")],
+        [InlineKeyboardButton(text="🏏 View Contests", callback_data="contests")]
+    ])
+    
+    await message.answer(help_text, reply_markup=keyboard, parse_mode="Markdown")
 
 
 @user_router.callback_query(F.data == "balance")
 async def balance_callback(callback_query):
     """Handle balance callback"""
     await callback_query.answer()
-    # Create a new message object to avoid frozen instance error
-    from aiogram.types import Message
-    fake_message = Message(
-        message_id=callback_query.message.message_id,
-        from_user=callback_query.from_user,
-        chat=callback_query.message.chat,
-        date=callback_query.message.date,
-        content_type=callback_query.message.content_type,
-        text="",
-        reply_markup=callback_query.message.reply_markup
-    )
-    await balance_command(fake_message)
+    
+    # Get balance directly without creating fake message
+    try:
+        async with async_session() as session:
+            # Get user
+            user = await get_user_by_telegram_id(session, callback_query.from_user.id)
+            if not user:
+                await callback_query.message.answer("❌ User not found. Please use /start first.")
+                return
+            
+            # Get wallet
+            wallet = await get_wallet_for_user(session, user.id)
+            if not wallet:
+                await callback_query.message.answer("❌ Wallet not found. Please contact support.")
+                return
+            
+            # Format balance text
+            balance_text = f"💰 **Your Wallet Balance**\n\n"
+            balance_text += f"💳 **Deposit Balance:** {wallet.deposit_balance} USDT\n"
+            balance_text += f"🏆 **Winning Balance:** {wallet.winning_balance} USDT\n"
+            balance_text += f"🎁 **Bonus Balance:** {wallet.bonus_balance} USDT\n\n"
+            balance_text += f"💎 **Total Balance:** {wallet.deposit_balance + wallet.winning_balance + wallet.bonus_balance} USDT"
+            
+            # Create keyboard
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="💳 Deposit", callback_data="deposit")],
+                [InlineKeyboardButton(text="💸 Withdraw", callback_data="withdraw")],
+                [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
+            ])
+            
+            await callback_query.message.edit_text(
+                balance_text,
+                reply_markup=keyboard,
+                parse_mode="Markdown"
+            )
+            
+    except Exception as e:
+        logger.error(f"Error in balance callback: {e}")
+        await callback_query.message.answer("❌ Error loading balance. Please try again.")
 
 
 @user_router.callback_query(F.data == "main_menu")
@@ -433,13 +558,16 @@ async def main_menu_callback(callback_query):
         [InlineKeyboardButton(text="💰 Balance", callback_data="balance")],
         [InlineKeyboardButton(text="💳 Deposit", callback_data="deposit")],
         [InlineKeyboardButton(text="🏏 Contests", callback_data="contests")],
+        [InlineKeyboardButton(text="📊 My Contests", callback_data="my_contests")],
         [InlineKeyboardButton(text="💸 Withdraw", callback_data="withdraw")],
-        [InlineKeyboardButton(text="⚙️ Settings", callback_data="settings")]
+        [InlineKeyboardButton(text="⚙️ Settings", callback_data="settings")],
+        [InlineKeyboardButton(text="🆘 Support", callback_data="support")]
     ])
     
     await callback_query.message.edit_text(
-        "🏠 Main Menu\n\nChoose an option:",
-        reply_markup=keyboard
+        "🏠 *Main Menu*\n\nChoose an option:",
+        reply_markup=keyboard,
+        parse_mode="Markdown"
     )
 
 
@@ -447,36 +575,115 @@ async def main_menu_callback(callback_query):
 async def deposit_callback(callback_query):
     """Handle deposit callback"""
     await callback_query.answer()
-    # Create a new message object to avoid frozen instance error
-    from aiogram.types import Message
-    fake_message = Message(
-        message_id=callback_query.message.message_id,
-        from_user=callback_query.from_user,
-        chat=callback_query.message.chat,
-        date=callback_query.message.date,
-        content_type=callback_query.message.content_type,
-        text="",
-        reply_markup=callback_query.message.reply_markup
-    )
-    await deposit_command(fake_message, None)
+    
+    # Handle deposit directly without creating fake message
+    try:
+        async with async_session() as session:
+            # Get user
+            user = await get_user_by_telegram_id(session, callback_query.from_user.id)
+            if not user:
+                await callback_query.message.answer("❌ User not found. Please use /start first.")
+                return
+            
+            # Get or create wallet
+            wallet = await get_wallet_for_user(session, user.id)
+            if not wallet:
+                wallet = await create_wallet_for_user(session, user.id)
+            
+            # Get deposit address
+            deposit_address = await get_deposit_address_for_user(session, user.id)
+            if not deposit_address:
+                await callback_query.message.answer("❌ Error generating deposit address. Please try again.")
+                return
+            
+            # Format deposit text
+            deposit_text = f"💳 **Deposit USDT**\n\n"
+            deposit_text += f"📝 **Your Deposit Address:**\n`{deposit_address}`\n\n"
+            deposit_text += f"⚠️ **Important:**\n"
+            deposit_text += f"• Send only USDT to this address\n"
+            deposit_text += f"• Minimum deposit: No minimum\n"
+            deposit_text += f"• Network: BEP20 (BSC)\n"
+            deposit_text += f"• Deposits are processed automatically\n\n"
+            deposit_text += f"💡 **Tip:** Copy the address above and send USDT from your wallet."
+            
+            # Create keyboard
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔄 Refresh Balance", callback_data="balance")],
+                [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
+            ])
+            
+            await callback_query.message.edit_text(
+                deposit_text,
+                reply_markup=keyboard,
+                parse_mode="Markdown"
+            )
+            
+    except Exception as e:
+        logger.error(f"Error in deposit callback: {e}")
+        await callback_query.message.answer("❌ Error loading deposit info. Please try again.")
 
 
 @user_router.callback_query(F.data == "contests")
 async def contests_callback(callback_query):
     """Handle contests callback"""
     await callback_query.answer()
-    # Create a new message object to avoid frozen instance error
-    from aiogram.types import Message
-    fake_message = Message(
-        message_id=callback_query.message.message_id,
-        from_user=callback_query.from_user,
-        chat=callback_query.message.chat,
-        date=callback_query.message.date,
-        content_type=callback_query.message.content_type,
-        text="",
-        reply_markup=callback_query.message.reply_markup
-    )
-    await contests_command(fake_message)
+    
+    # Get contests directly without creating fake message
+    try:
+        async with async_session() as session:
+            # Get user
+            user = await get_user_by_telegram_id(session, callback_query.from_user.id)
+            if not user:
+                await callback_query.message.answer("❌ User not found. Please use /start first.")
+                return
+            
+            # Get open contests
+            contests = await get_contests(session, limit=10, status='open')
+            
+            if not contests:
+                contests_text = "🎯 **No contests available at the moment.**\n\nCheck back later for new contests!"
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
+                ])
+            else:
+                contests_text = "🎯 **Available Contests:**\n\n"
+                keyboard_buttons = []
+                
+                for contest in contests:
+                    # Get current entries count
+                    entries = await get_contest_entries(session, contest.id, limit=100)
+                    current_entries = len(entries)
+                    
+                    contests_text += f"🏆 **{contest.title}**\n"
+                    contests_text += f"💰 Entry Fee: {contest.entry_fee} {contest.currency}\n"
+                    contests_text += f"👥 Players: {current_entries}/{contest.max_players}\n"
+                    contests_text += f"🎁 Prize: {contest.prize_structure}\n\n"
+                    
+                    # Add join button if not at capacity
+                    if current_entries < contest.max_players:
+                        keyboard_buttons.append([
+                            InlineKeyboardButton(
+                                text=f"Join {contest.title}",
+                                callback_data=f"join_contest:{contest.id}"
+                            )
+                        ])
+                
+                # Add main menu button
+                keyboard_buttons.append([
+                    InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")
+                ])
+                
+                keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+            
+            await callback_query.message.edit_text(
+                contests_text,
+                reply_markup=keyboard,
+                parse_mode="Markdown"
+            )
+            
+    except Exception as e:
+        logger.error(f"Error in contests callback: {e}")
+        await callback_query.message.answer("❌ Error loading contests. Please try again.")
 
 
 @user_router.callback_query(F.data.startswith("start_with_code:"))
@@ -485,18 +692,19 @@ async def start_with_code_callback(callback_query):
     await callback_query.answer()
     invite_code = callback_query.data.split(":", 1)[1]
     
-    # Create a fake message with the invite code
-    from aiogram.types import Message
-    fake_message = Message(
-        message_id=callback_query.message.message_id,
-        from_user=callback_query.from_user,
-        chat=callback_query.message.chat,
-        date=callback_query.message.date,
-        content_type=callback_query.message.content_type,
-        text=f"/start {invite_code}",
-        reply_markup=callback_query.message.reply_markup
+    # Use the helper function directly
+    welcome_text, keyboard = await handle_user_start(
+        telegram_id=callback_query.from_user.id,
+        username=callback_query.from_user.username or f"user_{callback_query.from_user.id}",
+        chat_id=callback_query.message.chat.id,
+        invite_code=invite_code
     )
-    await start_command(fake_message)
+    
+    await callback_query.message.edit_text(
+        welcome_text,
+        reply_markup=keyboard,
+        parse_mode="Markdown"
+    )
 
 
 @user_router.callback_query(F.data == "start_without_code")
@@ -504,18 +712,56 @@ async def start_without_code_callback(callback_query):
     """Handle start without invite code"""
     await callback_query.answer()
     
-    # Create a fake message without invite code
-    from aiogram.types import Message
-    fake_message = Message(
-        message_id=callback_query.message.message_id,
-        from_user=callback_query.from_user,
-        chat=callback_query.message.chat,
-        date=callback_query.message.date,
-        content_type=callback_query.message.content_type,
-        text="/start",
-        reply_markup=callback_query.message.reply_markup
+    # Use the helper function directly
+    welcome_text, keyboard = await handle_user_start(
+        telegram_id=callback_query.from_user.id,
+        username=callback_query.from_user.username or f"user_{callback_query.from_user.id}",
+        chat_id=callback_query.message.chat.id,
+        invite_code=None
     )
-    await start_command(fake_message)
+    
+    await callback_query.message.edit_text(
+        welcome_text,
+        reply_markup=keyboard,
+        parse_mode="Markdown"
+    )
+
+
+@user_router.callback_query(F.data == "submit_deposit_tx")
+async def submit_deposit_tx_callback(callback_query, state: FSMContext):
+    """Handle deposit transaction hash submission"""
+    logger.info(f"User clicked submit_deposit_tx: {callback_query.from_user.id}")
+    await callback_query.answer()
+    
+    try:
+        async with async_session() as session:
+            user = await get_user_by_telegram_id(session, callback_query.from_user.id)
+            
+            if not user:
+                await callback_query.message.edit_text("Please use /start first to register your account.")
+                return
+            
+            # Set state to wait for transaction hash
+            await state.set_state(UserStates.waiting_for_deposit_tx_hash)
+            
+            await callback_query.message.edit_text(
+                "📝 **Submit Your Transaction Hash**\n\n"
+                "Please send your transaction hash (TX ID) from your wallet.\n\n"
+                "**Example:** `0x1234567890abcdef1234567890abcdef12345678`\n\n"
+                "⚠️ **Important:**\n"
+                "• Make sure you sent USDT to the correct address\n"
+                "• Use the exact transaction hash from your wallet\n"
+                "• Your deposit will be manually verified by our team\n\n"
+                "Type your transaction hash now:",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="❌ Cancel", callback_data="main_menu")]
+                ]),
+                parse_mode="Markdown"
+            )
+                
+    except Exception as e:
+        logger.error(f"Error in deposit transaction submission: {e}")
+        await callback_query.message.edit_text("Sorry, there was an error. Please try again later.")
 
 
 @user_router.callback_query(F.data == "subscribe_deposit_notifications")
@@ -614,12 +860,14 @@ async def process_withdrawal_amount(message: Message, state: FSMContext):
             await message.answer("❌ Amount must be greater than 0. Please try again:")
             return
         
-        # Store amount in state
-        await state.update_data(withdrawal_amount=amount)
+        # Convert to Decimal and store in state
+        from decimal import Decimal
+        amount_decimal = Decimal(str(amount))
+        await state.update_data(withdrawal_amount=str(amount_decimal))
         await state.set_state(UserStates.waiting_for_withdrawal_address)
         
         await message.answer(
-            f"💸 Withdrawal Amount: {amount} {settings.currency}\n\n"
+            f"💸 Withdrawal Amount: {amount_decimal} {settings.currency}\n\n"
             f"Please enter the destination address where you want to receive the funds:\n\n"
             f"⚠️ Make sure the address is correct - withdrawals cannot be reversed!",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
@@ -630,30 +878,23 @@ async def process_withdrawal_amount(message: Message, state: FSMContext):
     except ValueError:
         await message.answer("❌ Invalid amount. Please enter a valid number:")
     except Exception as e:
-        logger.error(f"Error processing withdrawal amount: {e}")
+        logger.error(f"Error processing withdrawal amount: {str(e)}")
         await message.answer("Sorry, there was an error. Please try again.")
 
 
-@user_router.message(UserStates.waiting_for_withdrawal_address)
-async def process_withdrawal_address(message: Message, state: FSMContext):
-    """Process withdrawal address input"""
+@user_router.message(UserStates.waiting_for_deposit_tx_hash)
+async def process_deposit_tx_hash(message: Message, state: FSMContext):
+    """Process deposit transaction hash input"""
+    logger.info(f"Processing deposit tx hash: {message.text}")
     try:
-        address = message.text.strip()
+        tx_hash = message.text.strip()
         
-        if len(address) < 10:  # Basic validation
-            await message.answer("❌ Address seems too short. Please enter a valid address:")
+        # Basic validation for transaction hash
+        if not tx_hash.startswith("0x") or len(tx_hash) < 10:
+            await message.answer("❌ Invalid transaction hash format. Please enter a valid BSC transaction hash (starts with 0x):")
             return
         
-        # Get amount from state
-        data = await state.get_data()
-        amount = data.get("withdrawal_amount")
-        
-        if not amount:
-            await message.answer("❌ Error: Amount not found. Please start over.")
-            await state.clear()
-            return
-        
-        # Create withdrawal request
+        # Create deposit request for manual approval
         async with async_session() as session:
             user = await get_user_by_telegram_id(session, message.from_user.id)
             
@@ -662,29 +903,185 @@ async def process_withdrawal_address(message: Message, state: FSMContext):
                 await state.clear()
                 return
             
-            # Check balance again
-            wallet = await get_wallet_for_user(session, user.id)
-            total_balance = wallet.deposit_balance + wallet.winning_balance + wallet.bonus_balance
+            # Create manual deposit transaction
+            from app.repos.deposit_repo import create_deposit_transaction
+            from decimal import Decimal
             
-            if amount > total_balance:
-                await message.answer(
-                    f"❌ Insufficient balance. You have {total_balance} {settings.currency} available.",
-                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                        [InlineKeyboardButton(text="🔄 Try Again", callback_data="withdraw")],
-                        [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
-                    ])
-                )
-                await state.clear()
-                return
-            
-            # Create withdrawal request
-            withdrawal = await create_withdrawal(
-                session,
-                user.telegram_id,
-                amount,
-                address
+            # For manual deposits, we'll set amount to 0 initially and let admin set the actual amount
+            transaction = await create_deposit_transaction(
+                session=session,
+                user_id=user.id,
+                amount=0.0,  # Will be updated by admin
+                tx_hash=tx_hash,
+                deposit_reference=f"MANUAL_{user.telegram_id}",
+                confirmations=0
             )
             
+            # Update transaction metadata to mark as manual approval needed
+            from sqlalchemy import text
+            
+            # Use direct SQL update to ensure metadata is properly saved
+            import json
+            new_metadata = {
+                "status": "pending_approval",
+                "manual_approval": True,
+                "telegram_id": str(user.telegram_id),
+                "username": user.username or "Unknown"
+            }
+            
+            # Get current metadata and merge with new metadata
+            current_metadata = transaction.tx_metadata or {}
+            current_metadata.update(new_metadata)
+            
+            # Update the transaction directly
+            transaction.tx_metadata = current_metadata
+            await session.commit()
+            
+            await message.answer(
+                f"✅ **Deposit Request Submitted!**\n\n"
+                f"📝 **Transaction Hash:** `{tx_hash}`\n"
+                f"👤 **User:** @{user.username or 'Unknown'}\n"
+                f"🆔 **User ID:** {user.telegram_id}\n\n"
+                f"⏳ **Status:** Pending Manual Approval\n\n"
+                f"Our team will verify your transaction and approve your deposit.\n"
+                f"You'll receive a notification once it's approved!\n\n"
+                f"💡 **Tip:** You can check your balance anytime with /balance",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="💰 Check Balance", callback_data="balance")],
+                    [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
+                ]),
+                parse_mode="Markdown"
+            )
+            
+            await state.clear()
+            
+    except Exception as e:
+        logger.error(f"Error processing deposit transaction hash: {e}")
+        await message.answer(
+            "❌ Sorry, there was an error processing your transaction hash.\n\n"
+            "Please try again or contact support if the issue persists.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔄 Try Again", callback_data="submit_deposit_tx")],
+                [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
+            ])
+        )
+        await state.clear()
+
+
+@user_router.message(UserStates.waiting_for_withdrawal_address)
+async def process_withdrawal_address(message: Message, state: FSMContext):
+    """Process withdrawal address input"""
+    logger.info(f"Processing withdrawal address: {message.text}")
+    logger.info(f"Function process_withdrawal_address started")
+    try:
+        address = message.text.strip()
+        logger.info(f"Address after strip: {address}")
+        
+        if len(address) < 10:  # Basic validation
+            logger.info(f"Address too short: {len(address)}")
+            await message.answer("❌ Address seems too short. Please enter a valid address:")
+            return
+        
+        # Get amount from state
+        logger.info(f"Getting amount from state")
+        data = await state.get_data()
+        amount_str = data.get("withdrawal_amount")
+        logger.info(f"Amount from state: {amount_str}")
+        
+        if not amount_str:
+            logger.error("No withdrawal amount found in state")
+            await message.answer("❌ Error: Amount not found. Please start over.")
+            await state.clear()
+            return
+        
+        # Convert string back to Decimal
+        logger.info(f"Converting amount to Decimal")
+        from decimal import Decimal
+        amount = Decimal(amount_str)
+        logger.info(f"Amount converted to Decimal: {amount}")
+        logger.info(f"About to start withdrawal processing")
+        
+        # Create withdrawal request with simplified approach
+        try:
+            async with async_session() as session:
+                user = await get_user_by_telegram_id(session, message.from_user.id)
+                
+                if not user:
+                    await message.answer("❌ User not found. Please use /start first.")
+                    await state.clear()
+                    return
+                
+                # Check winning balance (only winning balance can be withdrawn)
+                logger.info(f"Getting wallet for user {user.id}")
+                wallet = await get_wallet_for_user(session, user.id)
+                logger.info(f"Wallet retrieved: winning_balance={wallet.winning_balance}, amount={amount}")
+                
+                if amount > wallet.winning_balance:
+                    await message.answer(
+                        f"❌ Insufficient winning balance. You have {wallet.winning_balance} {settings.currency} winning balance available for withdrawal.\n\n"
+                        f"💡 Only winning balance can be withdrawn, not deposit or bonus balance.",
+                        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                            [InlineKeyboardButton(text="🔄 Try Again", callback_data="withdraw")],
+                            [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
+                        ])
+                    )
+                    await state.clear()
+                    return
+                
+                logger.info(f"Balance check passed: amount {amount} <= winning_balance {wallet.winning_balance}")
+                # Process withdrawal hold (move from winning to held balance)
+                logger.info(f"About to call process_withdrawal_hold_atomic for user {user.id} with amount {amount}")
+                from app.repos.wallet_repo import process_withdrawal_hold_atomic
+                logger.info(f"Calling process_withdrawal_hold_atomic for user {user.id} with amount {amount}")
+                success, error = await process_withdrawal_hold_atomic(
+                    session=session,
+                    user_id=user.id,
+                    amount=amount
+                )
+                logger.info(f"process_withdrawal_hold_atomic result: success={success}, error={error}")
+                
+                if not success:
+                    await message.answer(
+                        f"❌ Failed to process withdrawal hold: {error}\n\nPlease try again or contact support.",
+                        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                            [InlineKeyboardButton(text="🔄 Try Again", callback_data="withdraw")],
+                            [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
+                        ])
+                    )
+                    await state.clear()
+                    return
+                
+                # Create withdrawal transaction
+                from app.repos.transaction_repo import create_transaction
+                transaction = await create_transaction(
+                    session=session,
+                    user_id=user.id,
+                    tx_type="withdrawal",
+                    amount=amount,
+                    currency="USDT",
+                    related_entity="withdrawal_request",
+                    related_id=user.id,
+                    tx_metadata={
+                        "withdrawal_address": address,
+                        "notes": f"Withdrawal request from Telegram bot",
+                        "status": "pending",
+                        "amount_held": str(amount)
+                    }
+                )
+                
+                # Commit the transaction
+                await session.commit()
+                logger.info(f"Withdrawal transaction created successfully: {transaction.id}")
+                
+        except Exception as error:
+            logger.error(f"Error processing withdrawal: {str(error)}")
+            await message.answer(
+                f"❌ Failed to process withdrawal: {str(error)}\n\nPlease try again or contact support.",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🔄 Try Again", callback_data="withdraw")],
+                    [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
+                ])
+            )
             await state.clear()
             
             # Show confirmation
@@ -692,13 +1089,13 @@ async def process_withdrawal_address(message: Message, state: FSMContext):
                 f"✅ Withdrawal Request Created!\n\n"
                 f"💰 Amount: {amount} {settings.currency}\n"
                 f"📍 Address: {address}\n"
-                f"📋 ID: {withdrawal['id']}\n"
+                f"📋 ID: {transaction.id}\n"
                 f"📊 Status: Pending\n\n"
                 f"Your withdrawal request has been submitted for approval. "
                 f"You will be notified when it's processed.",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="📊 View Status", callback_data=f"withdrawal_status:{withdrawal['id']}")],
-                    [InlineKeyboardButton(text="❌ Cancel Request", callback_data=f"withdrawal_cancel:{withdrawal['id']}")],
+                    [InlineKeyboardButton(text="📊 View Status", callback_data=f"withdrawal_status:{transaction.id}")],
+                    [InlineKeyboardButton(text="❌ Cancel Request", callback_data=f"withdrawal_cancel:{transaction.id}")],
                     [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
                 ])
             )
@@ -732,12 +1129,13 @@ async def withdrawal_status_callback(callback_query):
     await callback_query.answer()
     
     try:
-        withdrawal_id = callback_query.data.split(":", 1)[1]
+        transaction_id = callback_query.data.split(":", 1)[1]
         
         async with async_session() as session:
-            withdrawal = await get_withdrawal(session, withdrawal_id)
+            from app.repos.transaction_repo import get_transaction_by_id
+            transaction = await get_transaction_by_id(session, transaction_id)
             
-            if not withdrawal:
+            if not transaction or transaction.tx_type != "withdrawal":
                 await callback_query.message.edit_text(
                     "❌ Withdrawal not found.",
                     reply_markup=InlineKeyboardMarkup(inline_keyboard=[
@@ -746,22 +1144,26 @@ async def withdrawal_status_callback(callback_query):
                 )
                 return
             
+            # Get status from metadata
+            status = transaction.tx_metadata.get("status", "pending") if transaction.tx_metadata else "pending"
+            withdrawal_address = transaction.tx_metadata.get("withdrawal_address", "N/A") if transaction.tx_metadata else "N/A"
+            
             status_emoji = {
                 "pending": "⏳",
                 "approved": "✅",
                 "rejected": "❌",
                 "completed": "🎉"
-            }.get(withdrawal.status, "❓")
+            }.get(status, "❓")
             
             await callback_query.message.edit_text(
                 f"📊 Withdrawal Status\n\n"
-                f"💰 Amount: {withdrawal.amount} {settings.currency}\n"
-                f"📍 Address: {withdrawal.address}\n"
-                f"📋 ID: {withdrawal.id}\n"
-                f"📊 Status: {status_emoji} {withdrawal.status.title()}\n\n"
+                f"💰 Amount: {transaction.amount} {transaction.currency}\n"
+                f"📍 Address: {withdrawal_address}\n"
+                f"📋 ID: {transaction.id}\n"
+                f"📊 Status: {status_emoji} {status.title()}\n\n"
                 f"Status updates will be sent to you automatically.",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="🔄 Refresh", callback_data=f"withdrawal_status:{withdrawal_id}")],
+                    [InlineKeyboardButton(text="🔄 Refresh", callback_data=f"withdrawal_status:{transaction_id}")],
                     [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
                 ])
             )
@@ -777,23 +1179,28 @@ async def withdrawal_cancel_request_callback(callback_query):
     await callback_query.answer()
     
     try:
-        withdrawal_id = callback_query.data.split(":", 1)[1]
+        transaction_id = callback_query.data.split(":", 1)[1]
         
         async with async_session() as session:
-            withdrawal = await get_withdrawal(session, withdrawal_id)
+            from app.repos.transaction_repo import get_transaction_by_id, update_transaction_metadata
+            transaction = await get_transaction_by_id(session, transaction_id)
             
-            if not withdrawal:
+            if not transaction or transaction.tx_type != "withdrawal":
                 await callback_query.message.edit_text("❌ Withdrawal not found.")
                 return
             
-            if withdrawal.status != "pending":
+            # Check current status
+            current_status = transaction.tx_metadata.get("status", "pending") if transaction.tx_metadata else "pending"
+            if current_status != "pending":
                 await callback_query.message.edit_text(
-                    f"❌ Cannot cancel withdrawal. Status: {withdrawal.status.title()}"
+                    f"❌ Cannot cancel withdrawal. Status: {current_status.title()}"
                 )
                 return
             
-            # Update withdrawal status to cancelled
-            withdrawal.status = "cancelled"
+            # Update transaction metadata to cancelled
+            updated_metadata = transaction.metadata.copy() if transaction.metadata else {}
+            updated_metadata["status"] = "cancelled"
+            await update_transaction_metadata(session, transaction_id, updated_metadata)
             await session.commit()
             
             await callback_query.message.edit_text(
@@ -815,18 +1222,125 @@ async def withdraw_callback(callback_query, state: FSMContext):
     """Handle withdraw callback from menu"""
     await callback_query.answer()
     
-    # Create a fake message object
-    from aiogram.types import Message
-    fake_message = Message(
-        message_id=callback_query.message.message_id,
-        from_user=callback_query.from_user,
-        chat=callback_query.message.chat,
-        date=callback_query.message.date,
-        content_type=callback_query.message.content_type,
-        text="/withdraw",
-        reply_markup=callback_query.message.reply_markup
-    )
-    await withdraw_command(fake_message, state)
+    # Handle withdraw directly without creating fake message
+    try:
+        async with async_session() as session:
+            # Get user
+            user = await get_user_by_telegram_id(session, callback_query.from_user.id)
+            if not user:
+                await callback_query.message.answer("❌ User not found. Please use /start first.")
+                return
+            
+            # Get wallet
+            wallet = await get_wallet_for_user(session, user.id)
+            if not wallet:
+                await callback_query.message.answer("❌ Wallet not found. Please contact support.")
+                return
+            
+            # Check if user has sufficient balance
+            total_balance = wallet.deposit_balance + wallet.winning_balance + wallet.bonus_balance
+            if total_balance <= 0:
+                withdraw_text = "💸 **Withdraw Funds**\n\n"
+                withdraw_text += "❌ **Insufficient Balance**\n\n"
+                withdraw_text += f"💰 **Your Balance:** {total_balance} USDT\n"
+                withdraw_text += f"💳 **Deposit Balance:** {wallet.deposit_balance} USDT\n"
+                withdraw_text += f"🏆 **Winning Balance:** {wallet.winning_balance} USDT\n"
+                withdraw_text += f"🎁 **Bonus Balance:** {wallet.bonus_balance} USDT\n\n"
+                withdraw_text += "💡 **Tip:** You need to deposit funds first before you can withdraw."
+                
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="💳 Deposit Funds", callback_data="deposit")],
+                    [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
+                ])
+            else:
+                withdraw_text = "💸 **Withdraw Funds**\n\n"
+                withdraw_text += f"💰 **Available Balance:** {total_balance} USDT\n"
+                withdraw_text += f"💳 **Deposit Balance:** {wallet.deposit_balance} USDT\n"
+                withdraw_text += f"🏆 **Winning Balance:** {wallet.winning_balance} USDT\n"
+                withdraw_text += f"🎁 **Bonus Balance:** {wallet.bonus_balance} USDT\n\n"
+                withdraw_text += "⚠️ **Important:**\n"
+                withdraw_text += "• Minimum withdrawal: 10 USDT\n"
+                withdraw_text += "• Withdrawal fee: 1 USDT\n"
+                withdraw_text += "• Processing time: 1-24 hours\n\n"
+                withdraw_text += "Please enter the amount you want to withdraw:"
+                
+                # Set state to wait for withdrawal amount
+                await state.set_state(UserStates.waiting_for_withdrawal_amount)
+                
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
+                ])
+            
+            await callback_query.message.edit_text(
+                withdraw_text,
+                reply_markup=keyboard,
+                parse_mode="Markdown"
+            )
+            
+    except Exception as e:
+        logger.error(f"Error in withdraw callback: {e}")
+        await callback_query.message.answer("❌ Error loading withdraw info. Please try again.")
+
+
+@user_router.callback_query(F.data == "my_contests")
+async def my_contests_callback(callback_query):
+    """Handle my contests callback"""
+    await callback_query.answer()
+    
+    try:
+        async with async_session() as session:
+            user = await get_user_by_telegram_id(session, callback_query.from_user.id)
+            
+            if not user:
+                await callback_query.message.edit_text("Please use /start first to register your account.")
+                return
+            
+            # Get user's contest entries
+            from app.repos.contest_entry_repo import get_user_contest_entries
+            entries = await get_user_contest_entries(session, user.id, limit=10)
+            
+            if not entries:
+                await callback_query.message.edit_text(
+                    "📝 You haven't joined any contests yet.\n\n"
+                    "Use the Contests button to see available contests and join them!",
+                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="🏏 View Contests", callback_data="contests")],
+                        [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
+                    ])
+                )
+                return
+            
+            contests_text = "🏏 Your Contest Entries\n\n"
+            
+            for entry in entries:
+                from app.repos.contest_repo import get_contest_by_id
+                contest = await get_contest_by_id(session, entry.contest_id)
+                if contest:
+                    status_emoji = {
+                        "open": "🟢",
+                        "closed": "🔴", 
+                        "settled": "🏆",
+                        "cancelled": "❌"
+                    }.get(contest.status, "❓")
+                    
+                    contests_text += (
+                        f"{status_emoji} {contest.title}\n"
+                        f"💰 Entry Fee: {entry.entry_fee} {contest.currency}\n"
+                        f"📅 Joined: {entry.created_at.strftime('%Y-%m-%d %H:%M')}\n"
+                        f"📊 Status: {contest.status.title()}\n\n"
+                    )
+            
+            # Add back button
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🏏 View All Contests", callback_data="contests")],
+                [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
+            ])
+            
+            await callback_query.message.edit_text(contests_text, reply_markup=keyboard)
+            
+    except Exception as e:
+        logger.error(f"Error in my contests callback: {e}")
+        await callback_query.message.edit_text("Sorry, there was an error. Please try again later.")
 
 
 @user_router.callback_query(F.data == "settings")
@@ -846,7 +1360,7 @@ async def settings_callback(callback_query):
                 f"⚙️ Settings\n\n"
                 f"👤 Username: {user.username}\n"
                 f"🆔 User ID: {user.id}\n"
-                f"📊 Status: {user.status.title()}\n"
+                f"📊 Status: {user.status.value.title()}\n"
                 f"📅 Member since: {user.created_at.strftime('%Y-%m-%d')}\n\n"
                 f"🔔 Notifications: Enabled\n"
                 f"💬 Language: English\n\n"

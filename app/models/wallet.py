@@ -19,6 +19,7 @@ class Wallet(Base):
     deposit_balance = Column(Numeric(30, 8), nullable=False, default=0)
     winning_balance = Column(Numeric(30, 8), nullable=False, default=0)
     bonus_balance = Column(Numeric(30, 8), nullable=False, default=0)
+    held_balance = Column(Numeric(30, 8), nullable=False, default=0)
     updated_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Constraints
@@ -26,6 +27,7 @@ class Wallet(Base):
         CheckConstraint('deposit_balance >= 0', name='chk_deposit_nonneg'),
         CheckConstraint('winning_balance >= 0', name='chk_winning_nonneg'),
         CheckConstraint('bonus_balance >= 0', name='chk_bonus_nonneg'),
+        CheckConstraint('held_balance >= 0', name='chk_held_nonneg'),
     )
 
     def __repr__(self):

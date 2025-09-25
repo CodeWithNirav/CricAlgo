@@ -48,12 +48,12 @@ export default function ContestDetail({contestId}){
     }
   }
   
-  useEffect(()=>{ 
-    loadContestData();
-  },[contestId]);
-  
-  function toggle(eid){ 
-    setSelected(s=> s.includes(eid)? s.filter(x=>x!==eid): [...s,eid]) 
+  function toggle(id){
+    setSelected(prev => 
+      prev.includes(id) 
+        ? prev.filter(x => x !== id)
+        : [...prev, id]
+    );
   }
   
   async function selectWinners(){
@@ -73,7 +73,14 @@ export default function ContestDetail({contestId}){
       });
       
       if (response.ok) {
-        alert("Winners selected successfully!");
+        const result = await response.json();
+        if (result.settlement && result.settlement.success) {
+          alert("Winners selected and contest settled successfully! Winning amounts have been credited to the winners' accounts.");
+        } else if (result.settlement_error) {
+          alert(`Winners selected but settlement failed: ${result.settlement_error}. Please contact support.`);
+        } else {
+          alert("Winners selected successfully!");
+        }
         await loadContestData(); // Reload data
         setSelected([]); // Clear selection
       } else {
@@ -86,25 +93,10 @@ export default function ContestDetail({contestId}){
     }
   }
   
-  async function settle(){
-    try {
-      const response = await fetch(`/api/v1/admin/contests/${contestId}/settle`,{
-        method:"POST", 
-        headers:{"Authorization":"Bearer "+sessionStorage.getItem("admin_token")}
-      });
-      
-      if (response.ok) {
-        alert("Contest settled successfully!");
-        await loadContestData(); // Reload data
-      } else {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.detail?.error || errorData?.detail || `HTTP ${response.status}`);
-      }
-    } catch (err) {
-      console.error("Failed to settle contest:", err);
-      alert("Failed to settle contest: " + err.message);
-    }
-  }
+  
+  useEffect(() => {
+    loadContestData();
+  }, [contestId]);
   
   if (loading) {
     return (
@@ -175,16 +167,10 @@ export default function ContestDetail({contestId}){
       <div className="mb-6 flex flex-wrap gap-3 items-center">
         <button 
           onClick={selectWinners} 
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:bg-gray-400"
+          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:bg-gray-400"
           disabled={selected.length === 0}
         >
-          Select Winners ({selected.length})
-        </button>
-        <button 
-          onClick={settle} 
-          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-        >
-          Settle Contest
+          Select Winners & Settle ({selected.length})
         </button>
         <a 
           className="text-blue-600 hover:text-blue-800 underline text-sm" 
@@ -234,4 +220,3 @@ export default function ContestDetail({contestId}){
     </div>
   );
 }
-

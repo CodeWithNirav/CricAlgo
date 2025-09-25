@@ -10,6 +10,9 @@ from app.models.transaction import Transaction
 from app.models.chat_map import ChatMap
 import hashlib
 import secrets
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 async def generate_deposit_reference(session: AsyncSession, user_id: UUID) -> str:
@@ -48,9 +51,8 @@ async def get_deposit_address_for_user(session: AsyncSession, user_id: UUID) -> 
     Returns:
         Deposit address string
     """
-    # For now, return a fixed deposit address
-    # In production, this could be per-user addresses
-    return "TQn9Y2khEsLJW1ChVWFMSMeRDow5KcbLSE"  # Example TRC20 address
+    # BEP20 (BSC) deposit address for all users
+    return "0x509b2589086060a4bcd61fc8db7e4b862f3bcf57"
 
 
 async def create_deposit_transaction(
@@ -82,12 +84,11 @@ async def create_deposit_transaction(
         tx_type="deposit",
         amount=Decimal(str(amount)),
         currency="USDT",
-        tx_hash=tx_hash,
-        status="pending" if confirmations < 3 else "confirmed",
-        confirmations=confirmations,
         tx_metadata={
             "deposit_reference": deposit_reference,
-            "network": "TRC20"
+            "network": "BEP20",
+            "tx_hash": tx_hash,
+            "confirmations": confirmations
         }
     )
     session.add(transaction)
@@ -107,11 +108,16 @@ async def get_user_chat_id(session: AsyncSession, user_id: UUID) -> Optional[str
     Returns:
         Chat ID string or None if not found
     """
-    result = await session.execute(
-        select(ChatMap).where(ChatMap.user_id == str(user_id))
-    )
-    chat_map = result.scalar_one_or_none()
-    return chat_map.chat_id if chat_map else None
+    try:
+        result = await session.execute(
+            select(ChatMap).where(ChatMap.user_id == str(user_id))
+        )
+        chat_map = result.scalar_one_or_none()
+        return chat_map.chat_id if chat_map else None
+    except Exception as e:
+        # Handle case where chat_map table doesn't exist
+        logger.warning(f"Failed to get chat ID for user {user_id}: {e}")
+        return None
 
 
 async def subscribe_to_deposit_notifications(session: AsyncSession, user_id: UUID, chat_id: str) -> bool:

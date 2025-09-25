@@ -1,8 +1,24 @@
 import React, {useEffect, useState} from "react";
 export default function Withdrawals(){
   const [items,setItems] = useState([]);
-  useEffect(()=>{ fetch("/api/v1/admin/withdrawals?status=pending",{headers:{Authorization: "Bearer "+sessionStorage.getItem("admin_token")}}).then(r=>r.json()).then(d=>setItems(d)) },[]);
+  
+  const fetchWithdrawals = async () => {
+    try {
+      const response = await fetch("/api/v1/admin/withdrawals?status=pending",{
+        headers:{Authorization: "Bearer "+sessionStorage.getItem("admin_token")}
+      });
+      const data = await response.json();
+      setItems(data);
+    } catch (error) {
+      console.error("Failed to fetch withdrawals:", error);
+    }
+  };
+  
+  useEffect(() => {
+    fetchWithdrawals();
+  }, []);
   async function act(id,action){
+    console.log(`Processing ${action} for withdrawal ${id}`);
     let body = {};
     if (action === "reject") {
       const note = prompt("Enter rejection reason:");
@@ -11,7 +27,9 @@ export default function Withdrawals(){
     }
     
     try {
-      await fetch(`/api/v1/admin/withdrawals/${id}/${action}`,{
+      const url = `/api/v1/admin/withdrawals/${id}/${action}`;
+      console.log(`Calling API: ${url}`);
+      const response = await fetch(url,{
         method:"POST",
         headers:{
           "Authorization":"Bearer "+sessionStorage.getItem("admin_token"),
@@ -19,8 +37,19 @@ export default function Withdrawals(){
         },
         body: JSON.stringify(body)
       });
-      setItems(items.filter(i=>i.id!==id));
-      alert(`${action === 'approve' ? 'Approved' : 'Rejected'} withdrawal successfully!`);
+      
+      console.log(`Response status: ${response.status}`);
+      if (response.ok) {
+        const result = await response.json();
+        console.log(`Success response:`, result);
+        alert(`${action === 'approve' ? 'Approved' : 'Rejected'} withdrawal successfully!`);
+        // Refresh the withdrawals list to get updated data from server
+        await fetchWithdrawals();
+      } else {
+        const errorData = await response.json();
+        console.error(`Error response:`, errorData);
+        alert(`Error: ${errorData.detail || 'Failed to process withdrawal'}`);
+      }
     } catch (err) {
       alert(`Error: ${err.message}`);
     }

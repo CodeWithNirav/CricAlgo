@@ -44,9 +44,9 @@ async def process_deposit_async(tx_id, payload=None):
     """
     async with async_session() as db:
         try:
-            # Update transaction status to processed using raw SQL
+            # Update transaction metadata to mark as processed
             await db.execute(
-                text("UPDATE transactions SET status = 'processed' WHERE id = :tx_id"),
+                text("UPDATE transactions SET metadata = metadata || '{\"status\": \"processed\"}' WHERE id = :tx_id"),
                 {"tx_id": tx_id}
             )
             await db.commit()
