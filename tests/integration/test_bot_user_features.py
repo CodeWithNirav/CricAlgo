@@ -493,6 +493,46 @@ async def test_withdrawal_request_notification(async_session):
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+async def test_deposit_notification(async_session):
+    """Test deposit approval and rejection notification system"""
+    from app.tasks.notify import send_deposit_confirmation, send_deposit_rejection
+    from app.repos.user_repo import create_user, save_chat_id
+    from app.repos.transaction_repo import create_transaction
+    import time
+    
+    # Create user
+    unique_telegram_id = int(time.time() * 1000) % 1000000
+    user = await create_user(async_session, unique_telegram_id, f"testuser_{unique_telegram_id}", UserStatus.ACTIVE)
+    
+    # Save chat ID for notifications
+    await save_chat_id(async_session, user.id, "67891")
+    
+    # Create deposit transaction
+    transaction = await create_transaction(
+        session=async_session,
+        user_id=user.id,
+        tx_type="deposit",
+        amount=Decimal("100.00"),
+        currency="USDT",
+        related_entity="deposit_request",
+        related_id=user.id,
+        tx_metadata={"status": "pending"}
+    )
+    
+    # Commit the transaction
+    await async_session.commit()
+    
+    # Test approval notification
+    approval_result = await send_deposit_confirmation(str(transaction.id))
+    assert approval_result is not None
+    
+    # Test rejection notification
+    rejection_result = await send_deposit_rejection(str(transaction.id), "Test rejection reason")
+    assert rejection_result is not None
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_inline_menu_navigation(async_session):
     """Test inline menu navigation and callbacks"""
     from app.bot.handlers.commands import main_menu_callback, my_contests_callback

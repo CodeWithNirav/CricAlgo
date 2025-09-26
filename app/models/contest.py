@@ -16,8 +16,9 @@ class Contest(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     match_id = Column(UUID(as_uuid=True), nullable=False)
-    code = Column(String(64), nullable=False, unique=True)
+    code = Column(String(56), nullable=False, unique=True)
     title = Column(String(255), nullable=True)
+    user_link = Column(String(500), nullable=True)
     entry_fee = Column(Numeric(30, 8), nullable=False, default=0)
     currency = Column(String(16), nullable=False, default='USDT')
     max_players = Column(Integer, nullable=True)
@@ -46,6 +47,7 @@ class Contest(Base):
             "match_id": str(self.match_id),
             "code": self.code,
             "title": self.title,
+            "user_link": self.user_link,
             "entry_fee": str(self.entry_fee),
             "currency": self.currency,
             "max_players": self.max_players,

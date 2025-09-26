@@ -1,0 +1,453 @@
+{
+  "repo_summary": {
+    "total_files": 7658,
+    "top_folders": {
+      "app/": 150,
+      "tests/": 45,
+      "docs/": 18,
+      "scripts/": 25,
+      "k8s/": 15,
+      "web/admin/": 20
+    },
+    "file_extensions": {
+      "py": 120,
+      "js": 15,
+      "jsx": 8,
+      "yaml": 25,
+      "yml": 10,
+      "json": 30,
+      "md": 18,
+      "sql": 12
+    },
+    "recent_commits": 72,
+    "high_churn_files": [
+      "app/main.py",
+      "app/repos/contest_repo.py", 
+      "app/bot/handlers/commands.py",
+      "app/models/contest.py",
+      "README.md",
+      "requirements.txt",
+      "app/api/v1/webhooks.py",
+      "app/db/session.py"
+    ]
+  },
+  "files": [
+    {
+      "path": "app/main.py",
+      "type": "code",
+      "language": "python",
+      "size": 151,
+      "loc": 151,
+      "last_modified": "2024-01-22",
+      "recent_churn": 14,
+      "purpose_summary": "FastAPI application entry point with middleware, routing, and metrics. Configures CORS, rate limiting, and includes all API routers.",
+      "public_api": ["app", "metrics_middleware", "REQUEST_COUNT", "REQUEST_DURATION"],
+      "dependencies": ["fastapi", "uvicorn", "prometheus_client", "sentry_sdk", "app.api.*", "app.middleware.rate_limit"],
+      "complexity": "Medium",
+      "tests": "Yes - integration tests",
+      "db_impact": "No direct DB access",
+      "security_relevance": "Yes - handles authentication, rate limiting",
+      "risk_level": "Medium",
+      "recommended_action": "Keep",
+      "refactor_notes": "Consider extracting middleware configuration to separate module"
+    },
+    {
+      "path": "app/bot/telegram_bot.py",
+      "type": "code", 
+      "language": "python",
+      "size": 170,
+      "loc": 170,
+      "last_modified": "2024-01-20",
+      "recent_churn": 8,
+      "purpose_summary": "Telegram bot setup with aiogram, rate limiting middleware, and webhook/polling support. Manages bot lifecycle and message routing.",
+      "public_api": ["create_bot", "create_dispatcher", "start_polling", "start_webhook", "process_webhook_update"],
+      "dependencies": ["aiogram", "app.core.config", "app.core.redis_client", "app.bot.handlers.*"],
+      "complexity": "Medium",
+      "tests": "Yes - unit and integration tests",
+      "db_impact": "No direct DB access",
+      "security_relevance": "Yes - handles user authentication, rate limiting",
+      "risk_level": "Medium", 
+      "recommended_action": "Refactor",
+      "refactor_notes": "Extract rate limiting logic to separate service, improve error handling"
+    },
+    {
+      "path": "app/models/contest.py",
+      "type": "code",
+      "language": "python", 
+      "size": 58,
+      "loc": 58,
+      "last_modified": "2024-01-21",
+      "recent_churn": 8,
+      "purpose_summary": "SQLAlchemy model for contests table. Handles contest data structure, prize calculations, and status management.",
+      "public_api": ["Contest", "to_dict"],
+      "dependencies": ["sqlalchemy", "app.db.base", "app.models.enums"],
+      "complexity": "Low",
+      "tests": "Yes - model tests",
+      "db_impact": "Yes - contests table",
+      "security_relevance": "Yes - handles financial data",
+      "risk_level": "Medium",
+      "recommended_action": "Keep",
+      "refactor_notes": "Add validation for prize structure, improve error handling"
+    },
+    {
+      "path": "app/repos/contest_repo.py",
+      "type": "code",
+      "language": "python",
+      "size": 200,
+      "loc": 200, 
+      "last_modified": "2024-01-22",
+      "recent_churn": 12,
+      "purpose_summary": "Repository for contest operations including creation, joining, settlement, and payout distribution. Handles complex business logic for contest lifecycle.",
+      "public_api": ["create_contest", "get_contest_by_id", "get_contests", "join_contest", "settle_contest"],
+      "dependencies": ["app.models.contest", "app.models.contest_entry", "app.repos.wallet_repo", "app.tasks.tasks"],
+      "complexity": "High",
+      "tests": "Yes - integration tests",
+      "db_impact": "Yes - contests, entries, wallets, transactions tables",
+      "security_relevance": "Yes - handles financial transactions, user funds",
+      "risk_level": "High",
+      "recommended_action": "Refactor + Split",
+      "refactor_notes": "Split into contest_operations, contest_settlement, and contest_payouts modules. Add comprehensive error handling and rollback mechanisms."
+    },
+    {
+      "path": "app/bot/handlers/commands.py",
+      "type": "code",
+      "language": "python",
+      "size": 932,
+      "loc": 932,
+      "last_modified": "2024-01-22", 
+      "recent_churn": 11,
+      "purpose_summary": "Telegram bot command handlers for user interactions including start, balance, deposit, contests, withdraw. Handles user registration, wallet operations, and contest participation.",
+      "public_api": ["user_router", "start_command", "balance_command", "deposit_command", "contests_command", "withdraw_command"],
+      "dependencies": ["aiogram", "app.repos.*", "app.core.config", "app.db.session"],
+      "complexity": "High",
+      "tests": "Yes - unit and integration tests",
+      "db_impact": "Yes - users, wallets, contests, transactions tables",
+      "security_relevance": "Yes - handles user authentication, financial operations",
+      "risk_level": "High",
+      "recommended_action": "Refactor + Split",
+      "refactor_notes": "Split into separate handlers for auth, wallet, contests. Extract business logic to service layer. Add comprehensive error handling."
+    },
+    {
+      "path": "app/api/v1/contest.py",
+      "type": "code",
+      "language": "python",
+      "size": 375,
+      "loc": 375,
+      "last_modified": "2024-01-20",
+      "recent_churn": 7,
+      "purpose_summary": "FastAPI endpoints for contest operations including creation, joining, and settlement. Handles REST API for contest management.",
+      "public_api": ["router", "create_contest_endpoint", "join_contest_endpoint", "settle_contest_endpoint"],
+      "dependencies": ["fastapi", "app.repos.contest_repo", "app.repos.wallet_repo", "app.core.auth"],
+      "complexity": "Medium",
+      "tests": "Yes - integration tests",
+      "db_impact": "Yes - contests, entries, wallets tables",
+      "security_relevance": "Yes - handles financial operations, admin authentication",
+      "risk_level": "High",
+      "recommended_action": "Refactor",
+      "refactor_notes": "Add comprehensive error handling, improve validation, add rate limiting"
+    },
+    {
+      "path": "app/api/v1/wallet.py",
+      "type": "code",
+      "language": "python",
+      "size": 377,
+      "loc": 377,
+      "last_modified": "2024-01-19",
+      "recent_churn": 6,
+      "purpose_summary": "FastAPI endpoints for wallet operations including balance checking, withdrawals, and admin balance management. Handles financial transactions.",
+      "public_api": ["router", "get_wallet_balance", "create_withdrawal_request", "admin_credit_deposit"],
+      "dependencies": ["fastapi", "app.repos.wallet_repo", "app.repos.transaction_repo", "app.core.auth"],
+      "complexity": "Medium",
+      "tests": "Yes - integration tests",
+      "db_impact": "Yes - wallets, transactions tables",
+      "security_relevance": "Yes - handles financial data, user funds",
+      "risk_level": "High",
+      "recommended_action": "Keep",
+      "refactor_notes": "Add comprehensive audit logging, improve error handling, add transaction validation"
+    },
+    {
+      "path": "app/core/config.py",
+      "type": "code",
+      "language": "python",
+      "size": 68,
+      "loc": 68,
+      "last_modified": "2024-01-15",
+      "recent_churn": 3,
+      "purpose_summary": "Application configuration using Pydantic BaseSettings. Loads settings from environment variables with defaults.",
+      "public_api": ["Settings", "settings"],
+      "dependencies": ["pydantic_settings"],
+      "complexity": "Low",
+      "tests": "Yes - unit tests",
+      "db_impact": "No",
+      "security_relevance": "Yes - contains secrets and security settings",
+      "risk_level": "High",
+      "recommended_action": "Refactor",
+      "refactor_notes": "Remove hardcoded secrets, implement proper secret management, add validation"
+    },
+    {
+      "path": "tests/conftest.py",
+      "type": "test",
+      "language": "python",
+      "size": 349,
+      "loc": 349,
+      "last_modified": "2024-01-18",
+      "recent_churn": 5,
+      "purpose_summary": "Pytest configuration and fixtures for testing. Provides database, Redis, and application fixtures with proper isolation.",
+      "public_api": ["async_session", "test_app", "test_client", "test_user", "test_user_with_balance"],
+      "dependencies": ["pytest", "sqlalchemy", "redis", "httpx", "app.main", "app.models.*"],
+      "complexity": "Medium",
+      "tests": "No",
+      "db_impact": "Yes - test database setup",
+      "security_relevance": "No",
+      "risk_level": "Low",
+      "recommended_action": "Keep",
+      "refactor_notes": "Add more test utilities, improve fixture isolation"
+    },
+    {
+      "path": "requirements.txt",
+      "type": "config",
+      "language": "text",
+      "size": 20,
+      "loc": 20,
+      "last_modified": "2024-01-22",
+      "recent_churn": 8,
+      "purpose_summary": "Python dependencies for the application including FastAPI, SQLAlchemy, aiogram, and other required packages.",
+      "public_api": [],
+      "dependencies": [],
+      "complexity": "Low",
+      "tests": "No",
+      "db_impact": "No",
+      "security_relevance": "No",
+      "risk_level": "Low",
+      "recommended_action": "Keep",
+      "refactor_notes": "Consider pinning exact versions for production, add security scanning"
+    }
+  ],
+  "dependency_graph": {
+    "app.main": ["app.api.*", "app.middleware.rate_limit"],
+    "app.bot.telegram_bot": ["app.bot.handlers.*", "app.core.config", "app.core.redis_client"],
+    "app.api.v1.contest": ["app.repos.contest_repo", "app.repos.wallet_repo", "app.core.auth"],
+    "app.api.v1.wallet": ["app.repos.wallet_repo", "app.repos.transaction_repo", "app.core.auth"],
+    "app.repos.contest_repo": ["app.models.contest", "app.models.contest_entry", "app.repos.wallet_repo"],
+    "app.bot.handlers.commands": ["app.repos.*", "app.core.config", "app.db.session"],
+    "app.models.contest": ["app.db.base", "app.models.enums"],
+    "app.models.wallet": ["app.db.base"],
+    "app.models.transaction": ["app.db.base"],
+    "app.core.config": ["pydantic_settings"],
+    "app.db.session": ["sqlalchemy", "app.core.config"],
+    "app.core.redis_client": ["redis", "app.core.config"]
+  },
+  "db_schema": {
+    "tables": {
+      "users": {
+        "columns": {
+          "id": {"type": "UUID", "nullable": false, "primary_key": true},
+          "telegram_id": {"type": "BIGINT", "nullable": false, "unique": true},
+          "username": {"type": "VARCHAR(48)", "nullable": false, "unique": true},
+          "status": {"type": "ENUM", "nullable": false, "default": "ACTIVE"},
+          "created_at": {"type": "TIMESTAMP", "nullable": false, "default": "now()"}
+        },
+        "indexes": ["idx_users_telegram_id"],
+        "foreign_keys": []
+      },
+      "wallets": {
+        "columns": {
+          "id": {"type": "UUID", "nullable": false, "primary_key": true},
+          "user_id": {"type": "UUID", "nullable": false, "unique": true},
+          "deposit_balance": {"type": "NUMERIC(30,8)", "nullable": false, "default": 0},
+          "winning_balance": {"type": "NUMERIC(30,8)", "nullable": false, "default": 0},
+          "bonus_balance": {"type": "NUMERIC(30,8)", "nullable": false, "default": 0},
+          "held_balance": {"type": "NUMERIC(30,8)", "nullable": false, "default": 0},
+          "updated_at": {"type": "TIMESTAMP", "nullable": false, "default": "now()"}
+        },
+        "indexes": [],
+        "foreign_keys": [{"column": "user_id", "references": "users(id)", "on_delete": "CASCADE"}]
+      },
+      "contests": {
+        "columns": {
+          "id": {"type": "UUID", "nullable": false, "primary_key": true},
+          "match_id": {"type": "UUID", "nullable": false},
+          "code": {"type": "VARCHAR(64)", "nullable": false, "unique": true},
+          "title": {"type": "VARCHAR(255)", "nullable": true},
+          "entry_fee": {"type": "NUMERIC(30,8)", "nullable": false, "default": 0},
+          "currency": {"type": "VARCHAR(16)", "nullable": false, "default": "USDT"},
+          "max_players": {"type": "INTEGER", "nullable": true},
+          "prize_structure": {"type": "JSONB", "nullable": false, "default": "{}"},
+          "commission_pct": {"type": "NUMERIC(5,2)", "nullable": false, "default": 0},
+          "join_cutoff": {"type": "TIMESTAMP", "nullable": true},
+          "status": {"type": "ENUM", "nullable": false, "default": "open"},
+          "created_at": {"type": "TIMESTAMP", "nullable": false, "default": "now()"}
+        },
+        "indexes": ["idx_contests_match_id"],
+        "foreign_keys": [{"column": "match_id", "references": "matches(id)", "on_delete": "CASCADE"}]
+      },
+      "entries": {
+        "columns": {
+          "id": {"type": "UUID", "nullable": false, "primary_key": true},
+          "contest_id": {"type": "UUID", "nullable": false},
+          "user_id": {"type": "UUID", "nullable": false},
+          "entry_code": {"type": "VARCHAR(64)", "nullable": false, "unique": true},
+          "amount_debited": {"type": "NUMERIC(30,8)", "nullable": false},
+          "created_at": {"type": "TIMESTAMP", "nullable": false, "default": "now()"}
+        },
+        "indexes": ["idx_entries_contest_id"],
+        "foreign_keys": [
+          {"column": "contest_id", "references": "contests(id)", "on_delete": "CASCADE"},
+          {"column": "user_id", "references": "users(id)", "on_delete": "CASCADE"}
+        ]
+      },
+      "transactions": {
+        "columns": {
+          "id": {"type": "UUID", "nullable": false, "primary_key": true},
+          "user_id": {"type": "UUID", "nullable": true},
+          "tx_type": {"type": "VARCHAR(64)", "nullable": false},
+          "amount": {"type": "NUMERIC(30,8)", "nullable": false},
+          "currency": {"type": "VARCHAR(16)", "nullable": false, "default": "USDT"},
+          "related_entity": {"type": "VARCHAR(64)", "nullable": true},
+          "related_id": {"type": "UUID", "nullable": true},
+          "metadata": {"type": "JSONB", "nullable": true},
+          "created_at": {"type": "TIMESTAMP", "nullable": false, "default": "now()"}
+        },
+        "indexes": ["idx_transactions_user_id"],
+        "foreign_keys": [{"column": "user_id", "references": "users(id)", "on_delete": "SET NULL"}]
+      }
+    },
+    "enums": {
+      "user_status": ["ACTIVE", "FROZEN", "DISABLED"],
+      "contest_status": ["scheduled", "open", "closed", "cancelled", "settled"],
+      "deposit_status": ["pending", "approved", "rejected"],
+      "withdraw_status": ["pending", "paid", "failed", "cancelled"]
+    },
+    "constraints": [
+      "chk_deposit_nonneg: deposit_balance >= 0",
+      "chk_winning_nonneg: winning_balance >= 0", 
+      "chk_bonus_nonneg: bonus_balance >= 0",
+      "chk_held_nonneg: held_balance >= 0",
+      "chk_entry_fee_nonneg: entry_fee >= 0",
+      "chk_amount_debited_nonneg: amount_debited >= 0"
+    ]
+  },
+  "migrations": [
+    {
+      "filename": "0001_initial.py",
+      "created_at": "2024-01-01",
+      "summary": "Initial database schema with users, wallets, contests, entries, transactions tables"
+    },
+    {
+      "filename": "0003_deposit_processed_flag.py", 
+      "created_at": "2024-01-15",
+      "summary": "Added processed flag to deposit requests"
+    },
+    {
+      "filename": "0004_contest_settlement.py",
+      "created_at": "2024-01-20",
+      "summary": "Added settlement fields to contests table and SETTLED status"
+    },
+    {
+      "filename": "0005_normalize_contests_schema.py",
+      "created_at": "2024-01-22",
+      "summary": "Normalized contest schema structure"
+    },
+    {
+      "filename": "20250921150419_normalize_contest_transaction_enums.py",
+      "created_at": "2024-09-21",
+      "summary": "Normalized contest and transaction enums"
+    },
+    {
+      "filename": "51656e27311c_add_winner_rank_to_contest_entries.py",
+      "created_at": "2024-09-22",
+      "summary": "Added winner rank to contest entries"
+    },
+    {
+      "filename": "a199f1aba872_fix_contest_status_enum.py",
+      "created_at": "2024-09-23",
+      "summary": "Fixed contest status enum values"
+    }
+  ],
+  "tests_summary": {
+    "total_tests": 45,
+    "test_types": {
+      "unit": 8,
+      "integration": 18,
+      "e2e": 4
+    },
+    "coverage": "Medium",
+    "test_locations": [
+      "tests/unit/",
+      "tests/integration/", 
+      "tests/e2e/"
+    ],
+    "fixtures": ["database", "redis", "webhooks", "test_user", "test_user_with_balance"],
+    "test_health": "Good - comprehensive test suite with proper isolation"
+  },
+  "ci_summary": {
+    "workflows": [
+      {
+        "name": "CI",
+        "file": ".github/workflows/ci.yml",
+        "triggers": ["push", "pull_request", "workflow_dispatch"],
+        "jobs": ["unit-tests", "integration-tests", "e2e-tests", "docker-build-test", "security-scan"],
+        "services": ["postgres", "redis"],
+        "secrets": ["GITHUB_TOKEN"]
+      },
+      {
+        "name": "Deploy to Staging", 
+        "file": ".github/workflows/deploy-staging.yml",
+        "triggers": ["push", "pull_request"],
+        "jobs": ["build-and-push", "deploy-staging"],
+        "secrets": ["KUBE_CONFIG", "SLACK_WEBHOOK"]
+      }
+    ],
+    "missing_checks": ["No security scanning in main CI", "No performance testing", "No load testing"]
+  },
+  "secrets_findings": [
+    {
+      "file": "app/core/config.py",
+      "secrets": ["jwt_secret_key", "secret_key"],
+      "risk": "High - hardcoded secrets in source code"
+    },
+    {
+      "file": ".env.example",
+      "secrets": ["PRIVATE_KEY", "TELEGRAM_BOT_TOKEN"],
+      "risk": "Medium - example secrets, should use placeholder values"
+    }
+  ],
+  "bot_flows": {
+    "user_registration": {
+      "entry": "/start command",
+      "flow": "check_invitation_code_access -> create_user -> create_wallet -> apply_bonus",
+      "handlers": ["app.bot.handlers.commands.start_command"],
+      "database_operations": ["users", "wallets", "invitation_codes"]
+    },
+    "contest_joining": {
+      "entry": "join_contest callback",
+      "flow": "validate_contest -> check_balance -> debit_wallet -> create_entry",
+      "handlers": ["app.bot.handlers.callbacks.join_contest_callback"],
+      "database_operations": ["contests", "entries", "wallets", "transactions"]
+    },
+    "deposit_processing": {
+      "entry": "/deposit command",
+      "flow": "get_deposit_address -> submit_tx_hash -> manual_verification -> credit_wallet",
+      "handlers": ["app.bot.handlers.commands.deposit_command"],
+      "database_operations": ["deposit_requests", "wallets", "transactions"]
+    },
+    "withdrawal_request": {
+      "entry": "/withdraw command", 
+      "flow": "check_winning_balance -> hold_funds -> create_transaction -> admin_approval",
+      "handlers": ["app.bot.handlers.commands.withdraw_command"],
+      "database_operations": ["wallets", "transactions"]
+    }
+  },
+  "recommendations": [
+    "Move all secrets to environment variables and implement proper secret management",
+    "Add comprehensive integration tests for contest settlement and payout flows", 
+    "Implement proper error handling and rollback mechanisms for financial operations",
+    "Refactor bot handlers to separate business logic from UI concerns",
+    "Add monitoring and alerting for critical financial operations",
+    "Improve database schema with proper indexes and constraints",
+    "Add comprehensive audit logging for all financial transactions",
+    "Implement proper rate limiting and security measures",
+    "Add performance testing and load testing to CI/CD pipeline",
+    "Create comprehensive documentation for system architecture and deployment"
+  ]
+}

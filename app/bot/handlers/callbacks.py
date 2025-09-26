@@ -264,23 +264,18 @@ async def contest_details_callback(callback_query: CallbackQuery):
             current_entries = await get_contest_entries(session, contest_id)
             entry_count = len(current_entries)
             
-            # Get prize structure info
-            prize_info = ""
-            if hasattr(contest, 'prize_structure') and contest.prize_structure:
-                if isinstance(contest.prize_structure, dict):
-                    prize_info = f"🏆 Prize Structure:\n"
-                    for position, amount in contest.prize_structure.items():
-                        prize_info += f"  {position}: {amount} {contest.currency}\n"
-                else:
-                    prize_info = f"🏆 Prize: {contest.prize_structure} {contest.currency}\n"
-            else:
-                prize_info = f"🏆 Prize: Winner takes all ({contest.entry_fee * entry_count} {contest.currency})\n"
+            # Get prize structure info with net amounts after commission
+            from app.bot.utils.prize_calculator import format_prize_info, get_net_prize_pool_display
+            
+            # Use max participants for prize calculation (not current count)
+            max_participants = contest.max_players or 4  # Default to 4 if no max set
+            prize_info = format_prize_info(contest, max_participants)
             
             # Format start time
             start_time = contest.start_time.strftime('%Y-%m-%d %H:%M UTC') if contest.start_time else "TBD"
             
-            # Calculate prize pool
-            prize_pool = contest.entry_fee * entry_count
+            # Calculate net prize pool after commission using max participants
+            net_prize_pool = get_net_prize_pool_display(contest.entry_fee, max_participants)
             
             # Contest details text
             details_text = (
@@ -288,7 +283,7 @@ async def contest_details_callback(callback_query: CallbackQuery):
                 f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"🎯 *Title:* {contest.title}\n"
                 f"💰 *Entry Fee:* `{contest.entry_fee} {contest.currency}`\n"
-                f"🏆 *Prize Pool:* `{prize_pool} {contest.currency}`\n"
+                f"🏆 *Prize Pool:* `{net_prize_pool} {contest.currency}`\n"
                 f"👥 *Players:* `{entry_count}/{contest.max_players or '∞'}`\n"
                 f"📅 *Start Time:* `{start_time}`\n"
                 f"📊 *Status:* *{contest.status.title()}*\n\n"

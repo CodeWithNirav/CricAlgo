@@ -411,6 +411,71 @@ async def process_withdrawal_atomic(
         return False, f"Database error: {str(e)}", None
 
 
+async def refund_contest_entry_atomic(
+    session: AsyncSession,
+    user_id: UUID,
+    amount: Decimal,
+    contest_id: UUID
+) -> Tuple[bool, Optional[str]]:
+    """
+    Refund a contest entry by crediting the amount back to user's wallet.
+    Credits are added to deposit_balance to match the original debit priority.
+    
+    Args:
+        session: Database session
+        user_id: User UUID
+        amount: Amount to refund (must be positive)
+        contest_id: Contest UUID for transaction tracking
+    
+    Returns:
+        Tuple of (success: bool, error_message: Optional[str])
+    """
+    try:
+        if amount <= 0:
+            return False, "Amount must be positive"
+        
+        # Lock the wallet row for update
+        result = await session.execute(
+            select(Wallet)
+            .where(Wallet.user_id == user_id)
+            .with_for_update()
+        )
+        wallet = result.scalar_one_or_none()
+        
+        if not wallet:
+            return False, "Wallet not found"
+        
+        # Credit the amount to deposit balance (matching original debit priority)
+        wallet.deposit_balance += amount
+        
+        # Create transaction record for the refund
+        from app.repos.transaction_repo import create_transaction
+        await create_transaction(
+            session=session,
+            user_id=user_id,
+            tx_type="contest_refund",
+            amount=amount,
+            currency="USDT",
+            related_entity="contest",
+            related_id=contest_id,
+            tx_metadata={
+                "contest_id": str(contest_id),
+                "refund_reason": "contest_cancelled",
+                "status": "processed"
+            }
+        )
+        
+        await session.commit()
+        
+        logger.info(f"Refunded {amount} to user {user_id} for contest {contest_id}")
+        return True, None
+        
+    except Exception as e:
+        await session.rollback()
+        logger.error(f"Error refunding contest entry for user {user_id}: {str(e)}")
+        return False, f"Database error: {str(e)}"
+
+
 async def process_withdrawal_hold_atomic(
     session: AsyncSession,
     user_id: UUID,

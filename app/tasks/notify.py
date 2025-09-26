@@ -195,31 +195,31 @@ async def send_withdrawal_approval(withdrawal_id: str) -> bool:
     Send withdrawal approval notification to user.
     
     Args:
-        withdrawal_id: Withdrawal ID
+        withdrawal_id: Withdrawal ID (transaction ID)
     
     Returns:
         True if notification sent successfully
     """
     try:
         async with async_session() as session:
-            from app.repos.withdrawal_repo import get_withdrawal
+            from app.repos.transaction_repo import get_transaction_by_id
             
-            # Get withdrawal details
-            withdrawal = await get_withdrawal(session, withdrawal_id)
-            if not withdrawal:
-                logger.error(f"Withdrawal {withdrawal_id} not found")
+            # Get withdrawal transaction details
+            transaction = await get_transaction_by_id(session, UUID(withdrawal_id))
+            if not transaction or transaction.tx_type != "withdrawal":
+                logger.error(f"Withdrawal transaction {withdrawal_id} not found or not a withdrawal")
                 return False
             
             # Get user details
-            user = await get_user_by_id(session, withdrawal.user_id)
+            user = await get_user_by_id(session, transaction.user_id)
             if not user:
-                logger.error(f"User {withdrawal.user_id} not found for withdrawal {withdrawal_id}")
+                logger.error(f"User {transaction.user_id} not found for withdrawal {withdrawal_id}")
                 return False
             
             # Get user's chat ID
-            chat_id = await get_user_chat_id(session, withdrawal.user_id)
+            chat_id = await get_user_chat_id(session, transaction.user_id)
             if not chat_id:
-                logger.error(f"Chat ID not found for user {withdrawal.user_id}")
+                logger.error(f"Chat ID not found for user {transaction.user_id}")
                 return False
             
             # Get Redis client
@@ -233,11 +233,16 @@ async def send_withdrawal_approval(withdrawal_id: str) -> bool:
                 logger.info(f"Withdrawal approval notification already sent for {withdrawal_id}")
                 return True
             
+            # Get withdrawal address from metadata
+            withdrawal_address = "N/A"
+            if transaction.tx_metadata:
+                withdrawal_address = transaction.tx_metadata.get("withdrawal_address", "N/A")
+            
             # Send notification
             notification_text = (
                 f"✅ Withdrawal Approved!\n\n"
-                f"💰 Amount: {withdrawal.amount} {getattr(withdrawal, 'currency', 'USDT')}\n"
-                f"📍 Address: {withdrawal.address}\n"
+                f"💰 Amount: {transaction.amount} {transaction.currency}\n"
+                f"📍 Address: {withdrawal_address}\n"
                 f"📊 Status: Approved and being processed\n\n"
                 f"Your withdrawal will be processed shortly."
             )
@@ -269,7 +274,7 @@ async def send_withdrawal_rejection(withdrawal_id: str, reason: str = "Not speci
     Send withdrawal rejection notification to user.
     
     Args:
-        withdrawal_id: Withdrawal ID
+        withdrawal_id: Withdrawal ID (transaction ID)
         reason: Reason for rejection
     
     Returns:
@@ -277,24 +282,24 @@ async def send_withdrawal_rejection(withdrawal_id: str, reason: str = "Not speci
     """
     try:
         async with async_session() as session:
-            from app.repos.withdrawal_repo import get_withdrawal
+            from app.repos.transaction_repo import get_transaction_by_id
             
-            # Get withdrawal details
-            withdrawal = await get_withdrawal(session, withdrawal_id)
-            if not withdrawal:
-                logger.error(f"Withdrawal {withdrawal_id} not found")
+            # Get withdrawal transaction details
+            transaction = await get_transaction_by_id(session, UUID(withdrawal_id))
+            if not transaction or transaction.tx_type != "withdrawal":
+                logger.error(f"Withdrawal transaction {withdrawal_id} not found or not a withdrawal")
                 return False
             
             # Get user details
-            user = await get_user_by_id(session, withdrawal.user_id)
+            user = await get_user_by_id(session, transaction.user_id)
             if not user:
-                logger.error(f"User {withdrawal.user_id} not found for withdrawal {withdrawal_id}")
+                logger.error(f"User {transaction.user_id} not found for withdrawal {withdrawal_id}")
                 return False
             
             # Get user's chat ID
-            chat_id = await get_user_chat_id(session, withdrawal.user_id)
+            chat_id = await get_user_chat_id(session, transaction.user_id)
             if not chat_id:
-                logger.error(f"Chat ID not found for user {withdrawal.user_id}")
+                logger.error(f"Chat ID not found for user {transaction.user_id}")
                 return False
             
             # Get Redis client
@@ -308,11 +313,16 @@ async def send_withdrawal_rejection(withdrawal_id: str, reason: str = "Not speci
                 logger.info(f"Withdrawal rejection notification already sent for {withdrawal_id}")
                 return True
             
+            # Get withdrawal address from metadata
+            withdrawal_address = "N/A"
+            if transaction.tx_metadata:
+                withdrawal_address = transaction.tx_metadata.get("withdrawal_address", "N/A")
+            
             # Send notification
             notification_text = (
                 f"❌ Withdrawal Rejected\n\n"
-                f"💰 Amount: {withdrawal.amount} {getattr(withdrawal, 'currency', 'USDT')}\n"
-                f"📍 Address: {withdrawal.address}\n"
+                f"💰 Amount: {transaction.amount} {transaction.currency}\n"
+                f"📍 Address: {withdrawal_address}\n"
                 f"📊 Status: Rejected\n\n"
                 f"Reason: {reason}\n\n"
                 f"Your funds have been returned to your wallet balance."
@@ -337,4 +347,79 @@ async def send_withdrawal_rejection(withdrawal_id: str, reason: str = "Not speci
             
     except Exception as e:
         logger.error(f"Error sending withdrawal rejection notification for {withdrawal_id}: {e}")
+        return False
+
+
+async def send_deposit_rejection(tx_id: str, reason: str = "Not specified") -> bool:
+    """
+    Send deposit rejection notification to user.
+    
+    Args:
+        tx_id: Transaction ID
+        reason: Reason for rejection
+    
+    Returns:
+        True if notification sent successfully
+    """
+    try:
+        async with async_session() as session:
+            from app.repos.transaction_repo import get_transaction_by_id
+            
+            # Get transaction details
+            transaction = await get_transaction_by_id(session, UUID(tx_id))
+            if not transaction or transaction.tx_type != "deposit":
+                logger.error(f"Transaction {tx_id} not found or not a deposit")
+                return False
+            
+            # Get user details
+            user = await get_user_by_id(session, transaction.user_id)
+            if not user:
+                logger.error(f"User {transaction.user_id} not found for transaction {tx_id}")
+                return False
+            
+            # Get user's chat ID
+            chat_id = await get_user_chat_id(session, transaction.user_id)
+            if not chat_id:
+                logger.error(f"Chat ID not found for user {transaction.user_id}")
+                return False
+            
+            # Get Redis client
+            redis_client = await get_redis_client()
+            
+            # Create idempotency key to prevent duplicate notifications
+            idempotency_key = f"deposit_rejection:{tx_id}"
+            
+            # Check if notification already sent
+            if await redis_client.exists(idempotency_key):
+                logger.info(f"Deposit rejection notification already sent for transaction {tx_id}")
+                return True
+            
+            # Send notification using bot
+            notification_text = (
+                f"❌ Deposit Rejected\n\n"
+                f"💰 Amount: {transaction.amount} {transaction.currency}\n"
+                f"📊 Status: Rejected\n\n"
+                f"Reason: {reason}\n\n"
+                f"Please contact support if you believe this is an error."
+            )
+            
+            try:
+                bot = get_bot()
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text=notification_text,
+                    reply_markup=None
+                )
+                logger.info(f"Deposit rejection notification sent to chat {chat_id}")
+            except Exception as e:
+                logger.error(f"Failed to send deposit rejection notification to chat {chat_id}: {e}")
+                return False
+            
+            # Mark notification as sent
+            await redis_client.setex(idempotency_key, 86400, "sent")  # 24 hours
+            
+            return True
+            
+    except Exception as e:
+        logger.error(f"Error sending deposit rejection notification for transaction {tx_id}: {e}")
         return False

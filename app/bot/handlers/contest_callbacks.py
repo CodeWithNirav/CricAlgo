@@ -175,14 +175,43 @@ async def join_contest_callback(callback_query: CallbackQuery):
                 session, contest_id, user.id, contest.entry_fee
             )
             
+            # Get match information
+            from app.models.match import Match
+            from sqlalchemy import select
+            
+            match = None
+            try:
+                match_result = await session.execute(
+                    select(Match).where(Match.id == contest.match_id)
+                )
+                match = match_result.scalar_one_or_none()
+            except Exception as e:
+                logger.error(f"Error fetching match info: {e}")
+            
             # Success message with improved formatting
             success_text = (
                 f"🎉 *Successfully joined contest!*\n\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"🏏 *Contest:* {contest.title}\n"
                 f"💰 *Entry Fee:* `{contest.entry_fee} {contest.currency}`\n"
-                f"🆔 *Entry ID:* `{entry.id}`\n\n"
-                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"🆔 *Entry ID:* `{entry.id}`\n"
+                f"🔑 *Contest Code:* `{contest.code}`\n"
+            )
+            
+            # Add match information if available
+            if match:
+                success_text += f"🏆 *Match:* {match.title}\n"
+                if match.start_time:
+                    from datetime import datetime
+                    start_time_str = match.start_time.strftime('%Y-%m-%d %H:%M UTC')
+                    success_text += f"⏰ *Match Time:* `{start_time_str}`\n"
+            
+            # Add user link if provided by admin
+            if contest.user_link:
+                success_text += f"🔗 *User Link:* {contest.user_link}\n"
+            
+            success_text += (
+                f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"🍀 *Good luck!* 🍀"
             )
             
@@ -246,23 +275,31 @@ async def contest_details_callback(callback_query: CallbackQuery):
             current_entries = await get_contest_entries(session, contest_id)
             entry_count = len(current_entries)
             
-            # Get prize structure info
-            prize_info = ""
-            if hasattr(contest, 'prize_structure') and contest.prize_structure:
-                if isinstance(contest.prize_structure, dict):
-                    prize_info = f"🏆 *Prize Structure:*\n"
-                    for position, amount in contest.prize_structure.items():
-                        prize_info += f"  {position}: {amount} {contest.currency}\n"
-                else:
-                    prize_info = f"🏆 *Prize:* {contest.prize_structure} {contest.currency}\n"
-            else:
-                prize_info = f"🏆 *Prize:* Winner takes all ({contest.entry_fee * entry_count} {contest.currency})\n"
+            # Get prize structure info with net amounts after commission
+            from app.bot.utils.prize_calculator import format_prize_info, get_net_prize_pool_display
+            
+            # Use max participants for prize calculation (not current count)
+            max_participants = contest.max_players or 4  # Default to 4 if no max set
+            prize_info = format_prize_info(contest, max_participants)
             
             # Format start time
             start_time = contest.start_time.strftime('%Y-%m-%d %H:%M UTC') if contest.start_time else "TBD"
             
-            # Calculate prize pool
-            prize_pool = contest.entry_fee * entry_count
+            # Calculate net prize pool after commission using max participants
+            net_prize_pool = get_net_prize_pool_display(contest.entry_fee, max_participants)
+            
+            # Get match information
+            from app.models.match import Match
+            from sqlalchemy import select
+            
+            match = None
+            try:
+                match_result = await session.execute(
+                    select(Match).where(Match.id == contest.match_id)
+                )
+                match = match_result.scalar_one_or_none()
+            except Exception as e:
+                logger.error(f"Error fetching match info: {e}")
             
             # Contest details text with improved formatting
             details_text = (
@@ -270,8 +307,24 @@ async def contest_details_callback(callback_query: CallbackQuery):
                 f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"🎯 *Title:* {contest.title}\n"
                 f"💰 *Entry Fee:* `{contest.entry_fee} {contest.currency}`\n"
-                f"🏆 *Prize Pool:* `{prize_pool} {contest.currency}`\n"
+                f"🏆 *Prize Pool:* `{net_prize_pool} {contest.currency}`\n"
                 f"👥 *Players:* `{entry_count}/{contest.max_players or '∞'}`\n"
+                f"🔑 *Contest Code:* `{contest.code}`\n"
+            )
+            
+            # Add match information if available
+            if match:
+                details_text += f"🏆 *Match:* {match.title}\n"
+                if match.start_time:
+                    from datetime import datetime
+                    match_time_str = match.start_time.strftime('%Y-%m-%d %H:%M UTC')
+                    details_text += f"⏰ *Match Time:* `{match_time_str}`\n"
+            
+            # Add user link if provided by admin
+            if contest.user_link:
+                details_text += f"🔗 *User Link:* {contest.user_link}\n"
+            
+            details_text += (
                 f"📅 *Start Time:* `{start_time}`\n"
                 f"📊 *Status:* *{contest.status.title()}*\n\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"

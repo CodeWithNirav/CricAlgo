@@ -15,7 +15,7 @@ from app.core.config import settings
 from app.db.session import get_db
 from app.repos.contest_repo import (
     create_contest, get_contest_by_id, get_contests,
-    join_contest, settle_contest
+    join_contest, settle_contest, cancel_contest_atomic
 )
 from app.repos.wallet_repo import debit_for_contest_entry
 from app.repos.contest_entry_repo import create_contest_entry, get_contest_entries
@@ -68,6 +68,18 @@ class ContestSettleResponse(BaseModel):
     message: str
     total_payouts: int
     total_commission: str
+
+
+class ContestCancelResponse(BaseModel):
+    """Contest cancellation response model"""
+    success: bool
+    message: str
+    participants: int
+    successful_refunds: int
+    failed_refunds: int
+    total_refunded: str
+    refunds: List[Dict[str, Any]] = []
+    failed_refunds_list: List[Dict[str, Any]] = []
 
 
 @router.post("/admin/contest", response_model=ContestResponse)
@@ -287,6 +299,78 @@ async def settle_contest_endpoint(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to settle contest: {str(e)}"
+        )
+
+
+@router.post("/admin/{contest_id}/cancel", response_model=ContestCancelResponse)
+async def cancel_contest_endpoint(
+    contest_id: str,
+    current_admin: User = Depends(get_current_admin),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Cancel a contest and refund all participants (admin only).
+    
+    This endpoint cancels a contest and automatically refunds all participants
+    by crediting their entry fees back to their deposit balance.
+    """
+    try:
+        contest_uuid = UUID(contest_id)
+        
+        # Get contest to verify it exists
+        contest = await get_contest_by_id(session, contest_uuid)
+        if not contest:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Contest not found"
+            )
+        
+        # Check if contest can be cancelled
+        if contest.status == 'cancelled':
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Contest already cancelled"
+            )
+        
+        if contest.status == 'settled':
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot cancel settled contest"
+            )
+        
+        # Cancel the contest and process refunds
+        cancellation_result = await cancel_contest_atomic(
+            session=session,
+            contest_id=contest_uuid,
+            admin_id=current_admin.id
+        )
+        
+        if not cancellation_result.get("success", False):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cancellation failed: {cancellation_result.get('error', 'Unknown error')}"
+            )
+        
+        return ContestCancelResponse(
+            success=True,
+            message=cancellation_result.get("message", "Contest cancelled successfully"),
+            participants=cancellation_result.get("participants", 0),
+            successful_refunds=cancellation_result.get("successful_refunds", 0),
+            failed_refunds=cancellation_result.get("failed_refunds", 0),
+            total_refunded=cancellation_result.get("total_refunded", "0"),
+            refunds=cancellation_result.get("refunds", []),
+            failed_refunds_list=cancellation_result.get("failed_refunds", [])
+        )
+        
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid contest ID format"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to cancel contest: {str(e)}"
         )
 
 

@@ -350,6 +350,15 @@ async def reject_withdrawal(
         
         await db.commit()
         
+        # Send notification to user
+        from app.tasks.notify import send_withdrawal_rejection
+        try:
+            await send_withdrawal_rejection(withdrawal_id, note)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to send withdrawal rejection notification: {e}")
+        
         return {"success": True, "message": "Withdrawal rejected successfully"}
         
     except Exception as e:
@@ -431,6 +440,15 @@ async def approve_deposit(
         
         await db.commit()
         
+        # Send notification to user
+        from app.tasks.notify import send_deposit_confirmation
+        try:
+            await send_deposit_confirmation(deposit_id)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to send deposit approval notification: {e}")
+        
         return {"success": True, "message": "Deposit approved successfully"}
         
     except Exception as e:
@@ -491,6 +509,15 @@ async def reject_deposit(
         db.add(audit_log)
         
         await db.commit()
+        
+        # Send notification to user
+        from app.tasks.notify import send_deposit_rejection
+        try:
+            await send_deposit_rejection(deposit_id, request.note)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to send deposit rejection notification: {e}")
         
         return {"success": True, "message": "Deposit rejected successfully"}
         

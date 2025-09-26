@@ -3,7 +3,7 @@ Contest repository for contest management
 """
 
 import time
-from typing import List, Optional
+from typing import List, Optional, Dict
 from uuid import UUID
 from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -92,6 +92,27 @@ async def get_contest_by_id(session: AsyncSession, contest_id: UUID) -> Optional
         select(Contest).where(Contest.id == contest_id)
     )
     return result.scalar_one_or_none()
+
+
+async def get_contest_participants_count(session: AsyncSession, contest_id: UUID) -> int:
+    """
+    Get the number of participants in a contest.
+    
+    Args:
+        session: Database session
+        contest_id: Contest UUID
+    
+    Returns:
+        Number of participants
+    """
+    from app.models.contest_entry import ContestEntry
+    from sqlalchemy import func
+    
+    result = await session.execute(
+        select(func.count(ContestEntry.id))
+        .where(ContestEntry.contest_id == contest_id)
+    )
+    return result.scalar() or 0
 
 
 async def get_contests(
@@ -287,3 +308,158 @@ async def join_contest_atomic(session: AsyncSession, contest_id: str, telegram_i
     except Exception as e:
         await session.rollback()
         return {"ok": False, "error": f"Database error: {str(e)}"}
+
+
+async def cancel_contest_atomic(
+    session: AsyncSession,
+    contest_id: UUID,
+    admin_id: Optional[UUID] = None
+) -> Dict:
+    """
+    Cancel a contest and refund all participants.
+    
+    Args:
+        session: Database session
+        contest_id: Contest UUID to cancel
+        admin_id: Admin UUID who initiated cancellation (optional)
+    
+    Returns:
+        Dictionary with cancellation result and refund details
+    """
+    from app.repos.wallet_repo import refund_contest_entry_atomic
+    from app.repos.contest_entry_repo import get_contest_entries
+    from app.models.audit_log import AuditLog
+    from decimal import Decimal
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Lock contest row for update to prevent concurrent operations
+        contest_result = await session.execute(
+            select(Contest)
+            .where(Contest.id == contest_id)
+            .with_for_update()
+        )
+        contest = contest_result.scalar_one_or_none()
+        
+        if not contest:
+            return {"success": False, "error": "Contest not found"}
+        
+        # Check if contest can be cancelled
+        if contest.status == 'cancelled':
+            return {"success": False, "error": "Contest already cancelled"}
+        
+        if contest.status == 'settled':
+            return {"success": False, "error": "Cannot cancel settled contest"}
+        
+        # Get all contest entries
+        entries = await get_contest_entries(session, contest_id)
+        
+        if not entries:
+            # No participants, just mark as cancelled
+            contest.status = 'cancelled'
+            await session.commit()
+            
+            # Create audit log
+            audit_log = AuditLog(
+                admin_id=admin_id,
+                action="contest_cancelled",
+                details={
+                    "contest_id": str(contest_id),
+                    "participants": 0,
+                    "total_refunded": "0",
+                    "reason": "no_participants"
+                }
+            )
+            session.add(audit_log)
+            await session.commit()
+            
+            return {
+                "success": True,
+                "message": "Contest cancelled (no participants)",
+                "participants": 0,
+                "total_refunded": "0",
+                "refunds": []
+            }
+        
+        # Process refunds for all participants
+        refunds = []
+        total_refunded = Decimal('0')
+        failed_refunds = []
+        
+        for entry in entries:
+            try:
+                # Refund the entry fee
+                success, error = await refund_contest_entry_atomic(
+                    session,
+                    entry.user_id,
+                    entry.amount_debited,
+                    contest_id
+                )
+                
+                if success:
+                    refunds.append({
+                        "user_id": str(entry.user_id),
+                        "entry_id": str(entry.id),
+                        "amount": str(entry.amount_debited),
+                        "status": "success"
+                    })
+                    total_refunded += entry.amount_debited
+                    logger.info(f"Refunded {entry.amount_debited} to user {entry.user_id}")
+                else:
+                    failed_refunds.append({
+                        "user_id": str(entry.user_id),
+                        "entry_id": str(entry.id),
+                        "amount": str(entry.amount_debited),
+                        "error": error
+                    })
+                    logger.error(f"Failed to refund {entry.amount_debited} to user {entry.user_id}: {error}")
+                    
+            except Exception as e:
+                failed_refunds.append({
+                    "user_id": str(entry.user_id),
+                    "entry_id": str(entry.id),
+                    "amount": str(entry.amount_debited),
+                    "error": str(e)
+                })
+                logger.error(f"Exception refunding {entry.amount_debited} to user {entry.user_id}: {str(e)}")
+        
+        # Mark contest as cancelled
+        contest.status = 'cancelled'
+        
+        # Create audit log
+        audit_log = AuditLog(
+            admin_id=admin_id,
+            action="contest_cancelled",
+            details={
+                "contest_id": str(contest_id),
+                "participants": len(entries),
+                "successful_refunds": len(refunds),
+                "failed_refunds": len(failed_refunds),
+                "total_refunded": str(total_refunded),
+                "refunds": refunds,
+                "failed_refunds": failed_refunds
+            }
+        )
+        session.add(audit_log)
+        
+        await session.commit()
+        
+        logger.info(f"Successfully cancelled contest {contest_id} with {len(refunds)} successful refunds")
+        
+        return {
+            "success": True,
+            "message": f"Contest cancelled with {len(refunds)} successful refunds",
+            "participants": len(entries),
+            "successful_refunds": len(refunds),
+            "failed_refunds": len(failed_refunds),
+            "total_refunded": str(total_refunded),
+            "refunds": refunds,
+            "failed_refunds": failed_refunds
+        }
+        
+    except Exception as e:
+        await session.rollback()
+        logger.error(f"Error cancelling contest {contest_id}: {str(e)}")
+        return {"success": False, "error": f"Database error: {str(e)}"}

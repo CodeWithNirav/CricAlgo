@@ -137,6 +137,13 @@ export default function ContestDetail({contestId}){
                 <div><strong>Code:</strong> {contest.code}</div>
                 <div><strong>Entry Fee:</strong> {contest.entry_fee} {contest.currency}</div>
                 <div><strong>Max Players:</strong> {contest.max_players || "Unlimited"}</div>
+                {contest.user_link && (
+                  <div><strong>User Link:</strong> 
+                    <a href={contest.user_link} target="_blank" rel="noopener noreferrer" className="ml-1 text-blue-600 hover:underline">
+                      {contest.user_link}
+                    </a>
+                  </div>
+                )}
                 <div><strong>Status:</strong> 
                   <span className={`ml-1 px-2 py-1 rounded text-xs ${
                     contest.status === 'open' ? 'bg-green-100 text-green-800' :

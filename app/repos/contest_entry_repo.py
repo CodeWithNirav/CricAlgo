@@ -82,7 +82,8 @@ async def get_user_contest_entries(
     session: AsyncSession,
     user_id: UUID,
     limit: int = 50,
-    offset: int = 0
+    offset: int = 0,
+    contest_status: Optional[str] = None
 ) -> List[ContestEntry]:
     """
     Get user's contest entries.
@@ -92,15 +93,23 @@ async def get_user_contest_entries(
         user_id: User UUID
         limit: Maximum number of entries to return
         offset: Number of entries to skip
+        contest_status: Optional contest status to filter by ('open', 'closed', 'settled', 'cancelled')
     
     Returns:
         List of ContestEntry instances
     """
-    result = await session.execute(
+    from app.models.contest import Contest
+    
+    query = (
         select(ContestEntry)
+        .join(Contest, ContestEntry.contest_id == Contest.id)
         .where(ContestEntry.user_id == user_id)
-        .order_by(desc(ContestEntry.created_at))
-        .limit(limit)
-        .offset(offset)
     )
+    
+    if contest_status:
+        query = query.where(Contest.status == contest_status)
+    
+    query = query.order_by(desc(ContestEntry.created_at)).limit(limit).offset(offset)
+    
+    result = await session.execute(query)
     return result.scalars().all()

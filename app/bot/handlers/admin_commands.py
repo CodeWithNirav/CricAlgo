@@ -46,8 +46,10 @@ admin_router = Router()
 # States for admin interactions
 class AdminStates(StatesGroup):
     waiting_for_contest_title = State()
+    waiting_for_contest_code = State()
     waiting_for_contest_entry_fee = State()
     waiting_for_contest_max_players = State()
+    waiting_for_contest_user_link = State()
     waiting_for_contest_prize_structure = State()
     waiting_for_settlement_contest_id = State()
     waiting_for_withdrawal_user_id = State()

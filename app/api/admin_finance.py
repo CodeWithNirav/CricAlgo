@@ -192,6 +192,15 @@ async def approve_deposit(
         
         await db.commit()
         
+        # Send notification to user
+        from app.tasks.notify import send_deposit_confirmation
+        try:
+            await send_deposit_confirmation(deposit_id)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to send deposit approval notification: {e}")
+        
         return {"success": True, "message": f"Deposit {deposit_id} approved successfully!"}
         
     except Exception as e:
@@ -230,6 +239,15 @@ async def reject_deposit(
         db.add(audit_log)
         
         await db.commit()
+        
+        # Send notification to user
+        from app.tasks.notify import send_deposit_rejection
+        try:
+            await send_deposit_rejection(deposit_id, note)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to send deposit rejection notification: {e}")
         
         return {"success": True, "message": f"Deposit {deposit_id} rejected successfully!"}
         
@@ -330,6 +348,15 @@ async def approve_withdrawal(
         
         await db.commit()
         
+        # Send notification to user
+        from app.tasks.notify import send_withdrawal_approval
+        try:
+            await send_withdrawal_approval(withdrawal_id)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to send withdrawal approval notification: {e}")
+        
         return {"success": True, "message": f"Withdrawal {withdrawal_id} approved and processed successfully!"}
         
     except HTTPException:
@@ -395,6 +422,15 @@ async def reject_withdrawal(
         db.add(audit_log)
         
         await db.commit()
+        
+        # Send notification to user
+        from app.tasks.notify import send_withdrawal_rejection
+        try:
+            await send_withdrawal_rejection(withdrawal_id, note)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to send withdrawal rejection notification: {e}")
         
         return {"success": True, "message": f"Withdrawal {withdrawal_id} rejected successfully!"}
         

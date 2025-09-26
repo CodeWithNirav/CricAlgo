@@ -12,7 +12,7 @@ from aiogram.fsm.context import FSMContext
 from app.core.config import settings
 from app.db.session import async_session
 from app.repos.user_repo import get_user_by_telegram_id
-from app.repos.contest_repo import get_contest_by_id, get_contests
+from app.repos.contest_repo import get_contest_by_id, get_contests, get_contest_participants_count
 from app.repos.contest_entry_repo import create_contest_entry, get_contest_entries, get_user_contest_entries
 from app.repos.wallet_repo import get_wallet_for_user, debit_for_contest_entry, create_wallet_for_user
 from app.repos.deposit_repo import get_deposit_address_for_user
@@ -253,12 +253,17 @@ async def contests_callback(callback_query: CallbackQuery):
                     entries = await get_contest_entries(session, contest.id, limit=100)
                     current_entries = len(entries)
                     
+                    # Calculate net prize pool after commission using max participants
+                    from app.bot.utils.prize_calculator import get_net_prize_pool_display
+                    max_participants = contest.max_players or 4  # Default to 4 if no max set
+                    net_prize_pool = get_net_prize_pool_display(contest.entry_fee, max_participants)
+                    
                     # Format contest display
                     contests_text += (
                         f"🏆 *{contest.title}*\n"
                         f"💰 Entry Fee: `{contest.entry_fee} {contest.currency}`\n"
                         f"👥 Players: `{current_entries}/{contest.max_players or '∞'}`\n"
-                        f"🎁 Prize: `{contest.prize_structure or 'Winner takes all'}`\n\n"
+                        f"🎁 Prize: `{net_prize_pool} {contest.currency}`\n\n"
                     )
                     
                     # Add join button if not at capacity
@@ -284,33 +289,35 @@ async def contests_callback(callback_query: CallbackQuery):
 # My Contests Handler
 @unified_callback_router.callback_query(F.data == "my_contests")
 async def my_contests_callback(callback_query: CallbackQuery):
-    """Handle my contests callback with improved display"""
+    """Handle my contests callback - shows active contests by default"""
     has_access, user = await check_user_access(callback_query)
     if not has_access:
         return
     
     try:
         async with async_session() as session:
-            # Get user's contest entries
-            logger.info(f"Getting contest entries for user {user.id}")
-            entries = await get_user_contest_entries(session, user.id, limit=10)
-            logger.info(f"Found {len(entries)} contest entries")
+            # Get user's active contest entries (open contests only)
+            logger.info(f"Getting active contest entries for user {user.id}")
+            entries = await get_user_contest_entries(session, user.id, limit=5, contest_status="open")
+            logger.info(f"Found {len(entries)} active contest entries")
+            logger.info(f"DEBUG: Active contests callback triggered for user {user.id}")
             
             if not entries:
                 contests_text = (
-                    "📝 *No Contest Entries*\n\n"
+                    "🏏 *Your Active Contests*\n\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "You haven't joined any contests yet.\n"
+                    "You don't have any active contests at the moment.\n"
                     "Use the Contests button to see available contests and join them!\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
                 )
                 keyboard = BotUIComponents.get_navigation_keyboard(
                     additional_buttons=[
-                        [InlineKeyboardButton(text="🏏 View Contests", callback_data="contests")]
+                        [InlineKeyboardButton(text="🏏 View Contests", callback_data="contests")],
+                        [InlineKeyboardButton(text="📋 Closed Contests", callback_data="my_contests_closed")]
                     ]
                 )
             else:
-                contests_text = "🏏 *Your Contest Entries*\n\n"
+                contests_text = "🏏 *Your Active Contests*\n\n"
                 
                 for entry in entries:
                     logger.info(f"Getting contest {entry.contest_id} for entry {entry.id}")
@@ -318,18 +325,32 @@ async def my_contests_callback(callback_query: CallbackQuery):
                         contest = await get_contest_by_id(session, entry.contest_id)
                         if contest:
                             logger.info(f"Found contest: {contest.title}")
-                            status_emoji = {
-                                "open": "🟢",
-                                "closed": "🔴", 
-                                "settled": "🏆",
-                                "cancelled": "❌"
-                            }.get(contest.status, "❓")
                             
+                            # Get match information
+                            from app.models.match import Match
+                            from sqlalchemy import select
+                            match_result = await session.execute(
+                                select(Match).where(Match.id == contest.match_id)
+                            )
+                            match = match_result.scalar_one_or_none()
+                            
+                            # Format match time
+                            match_time = ""
+                            if match and match.start_time:
+                                match_time = match.start_time.strftime('%Y-%m-%d %H:%M UTC')
+                            
+                            # Create detailed contest display like after joining
                             contests_text += (
-                                f"{status_emoji} *{contest.title}*\n"
-                                f"💰 Entry Fee: `{entry.amount_debited} {contest.currency}`\n"
-                                f"📅 Joined: `{entry.created_at.strftime('%Y-%m-%d %H:%M')}`\n"
-                                f"📊 Status: *{contest.status.title()}*\n\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                f"🏏 *Contest: {contest.title}*\n"
+                                f"💰 *Entry Fee:* `{entry.amount_debited} {contest.currency}`\n"
+                                f"🆔 *Entry ID:* `{entry.id}`\n"
+                                f"🔑 *Contest Code:* `{contest.code}`\n"
+                                f"🏆 *Match:* {match.title if match else 'TBD'}\n"
+                                f"⏰ *Match Time:* {match_time if match_time else 'TBD'}\n"
+                                f"🔗 *User Link:* {contest.user_link if contest.user_link else 'N/A'}\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                f"🍀 *Good luck!* 🍀\n\n"
                             )
                         else:
                             logger.warning(f"Contest {entry.contest_id} not found for entry {entry.id}")
@@ -351,7 +372,8 @@ async def my_contests_callback(callback_query: CallbackQuery):
                 # Navigation buttons
                 keyboard = BotUIComponents.get_navigation_keyboard(
                     additional_buttons=[
-                        [InlineKeyboardButton(text="🏏 View All Contests", callback_data="contests")]
+                        [InlineKeyboardButton(text="🏏 View All Contests", callback_data="contests")],
+                        [InlineKeyboardButton(text="📋 Closed Contests", callback_data="my_contests_closed")]
                     ]
                 )
             
@@ -359,6 +381,138 @@ async def my_contests_callback(callback_query: CallbackQuery):
             
     except Exception as e:
         await BotResponseHandler.handle_error(callback_query, "Failed to load your contests")
+
+
+# Closed Contests Handler
+@unified_callback_router.callback_query(F.data == "my_contests_closed")
+async def my_contests_closed_callback(callback_query: CallbackQuery):
+    """Handle closed contests callback - shows closed/settled contests"""
+    has_access, user = await check_user_access(callback_query)
+    if not has_access:
+        return
+    
+    try:
+        async with async_session() as session:
+            # Get user's closed contest entries (closed, settled, cancelled)
+            logger.info(f"Getting closed contest entries for user {user.id}")
+            logger.info(f"DEBUG: Closed contests callback triggered for user {user.id}")
+            
+            # Get entries for closed/settled/cancelled contests
+            closed_entries = []
+            try:
+                # First try to get all user entries and filter manually
+                logger.info("Getting all user entries for closed contests filtering")
+                all_entries = await get_user_contest_entries(session, user.id, limit=20)
+                logger.info(f"Found {len(all_entries)} total entries")
+                
+                for entry in all_entries:
+                    try:
+                        contest = await get_contest_by_id(session, entry.contest_id)
+                        if contest and contest.status in ["closed", "settled", "cancelled"]:
+                            closed_entries.append(entry)
+                            logger.info(f"Added closed contest: {contest.title} (status: {contest.status})")
+                    except Exception as contest_error:
+                        logger.error(f"Error getting contest {entry.contest_id}: {contest_error}")
+                        continue
+                        
+            except Exception as e:
+                logger.error(f"Error getting entries for closed contests: {e}")
+                # If all fails, return empty list
+                closed_entries = []
+            
+            # Sort by created_at descending and limit to 5
+            closed_entries.sort(key=lambda x: x.created_at, reverse=True)
+            closed_entries = closed_entries[:5]
+            
+            logger.info(f"Found {len(closed_entries)} closed contest entries")
+            
+            if not closed_entries:
+                contests_text = (
+                    "📋 *Your Closed Contests*\n\n"
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    "You don't have any closed contests yet.\n"
+                    "Contests will appear here once they are closed or settled.\n"
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                )
+                keyboard = BotUIComponents.get_navigation_keyboard(
+                    additional_buttons=[
+                        [InlineKeyboardButton(text="🏏 Active Contests", callback_data="my_contests")],
+                        [InlineKeyboardButton(text="🏏 View All Contests", callback_data="contests")]
+                    ]
+                )
+            else:
+                contests_text = "📋 *Your Closed Contests*\n\n"
+                
+                for entry in closed_entries:
+                    logger.info(f"Getting contest {entry.contest_id} for entry {entry.id}")
+                    try:
+                        contest = await get_contest_by_id(session, entry.contest_id)
+                        if contest:
+                            logger.info(f"Found contest: {contest.title}")
+                            
+                            # Get detailed contest information with net prize after commission
+                            from app.bot.utils.prize_calculator import get_net_prize_pool_display
+                            participants_count = await get_contest_participants_count(session, contest.id)
+                            # Use max participants for prize calculation (not current count)
+                            max_participants = contest.max_players or 4  # Default to 4 if no max set
+                            net_prize_pool = get_net_prize_pool_display(contest.entry_fee, max_participants)
+                            
+                            # Status emoji and additional info
+                            status_emoji = {
+                                "closed": "🔴",
+                                "settled": "🏆", 
+                                "cancelled": "❌"
+                            }.get(contest.status, "❓")
+                            
+                            # Add position/prize info if settled
+                            position_info = ""
+                            if contest.status == "settled" and hasattr(entry, 'winner_rank') and entry.winner_rank:
+                                position_info = f"🏆 Position: #{entry.winner_rank}\n"
+                                if hasattr(entry, 'payout_amount') and entry.payout_amount:
+                                    position_info += f"💰 Prize: {entry.payout_amount} {contest.currency}\n"
+                            
+                            contests_text += (
+                                f"{status_emoji} *{contest.title}*\n"
+                                f"💰 Entry Fee: `{entry.amount_debited} {contest.currency}`\n"
+                                f"🏆 Prize Pool: `{net_prize_pool} {contest.currency}`\n"
+                                f"👥 Participants: `{participants_count}/{contest.max_players or '∞'}`\n"
+                                f"📅 Joined: `{entry.created_at.strftime('%Y-%m-%d %H:%M')}`\n"
+                                f"📊 Status: *{contest.status.title()}*\n"
+                                f"{position_info}\n"
+                            )
+                        else:
+                            logger.warning(f"Contest {entry.contest_id} not found for entry {entry.id}")
+                            contests_text += (
+                                f"❓ *Contest Entry*\n"
+                                f"💰 Entry Fee: `{entry.amount_debited} USDT`\n"
+                                f"📅 Joined: `{entry.created_at.strftime('%Y-%m-%d %H:%M')}`\n"
+                                f"📊 Status: *Unknown*\n\n"
+                            )
+                    except Exception as e:
+                        logger.error(f"Error getting contest {entry.contest_id}: {e}")
+                        contests_text += (
+                            f"❓ *Contest Entry*\n"
+                            f"💰 Entry Fee: `{entry.amount_debited} USDT`\n"
+                            f"📅 Joined: `{entry.created_at.strftime('%Y-%m-%d %H:%M')}`\n"
+                            f"📊 Status: *Error loading contest*\n\n"
+                        )
+                
+                # Navigation buttons
+                keyboard = BotUIComponents.get_navigation_keyboard(
+                    additional_buttons=[
+                        [InlineKeyboardButton(text="🏏 Active Contests", callback_data="my_contests")],
+                        [InlineKeyboardButton(text="🏏 View All Contests", callback_data="contests")]
+                    ]
+                )
+            
+            await BotResponseHandler.handle_callback_response(callback_query, contests_text, keyboard)
+            
+    except Exception as e:
+        logger.error(f"Error in closed contests callback: {e}")
+        logger.error(f"Error type: {type(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        await BotResponseHandler.handle_error(callback_query, f"Failed to load your closed contests: {str(e)}")
 
 
 # Settings Handler
@@ -669,16 +823,53 @@ async def join_contest_callback(callback_query: CallbackQuery):
                 )
                 return
             
+            # Get match information
+            from app.models.match import Match
+            from sqlalchemy import select
+            
+            match = None
+            try:
+                match_result = await session.execute(
+                    select(Match).where(Match.id == contest.match_id)
+                )
+                match = match_result.scalar_one_or_none()
+            except Exception as e:
+                logger.error(f"Error fetching match info: {e}")
+            
+            # Success message with improved formatting
+            success_text = (
+                f"🎉 *Successfully joined contest!*\n\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"🏏 *Contest:* {contest.title}\n"
+                f"💰 *Entry Fee:* `{contest.entry_fee} {contest.currency}`\n"
+                f"🆔 *Entry ID:* `{entry.id}`\n"
+                f"🔑 *Contest Code:* `{contest.code}`\n"
+            )
+            
+            # Add match information if available
+            if match:
+                success_text += f"🏆 *Match:* {match.title}\n"
+                if match.start_time:
+                    from datetime import datetime
+                    start_time_str = match.start_time.strftime('%Y-%m-%d %H:%M UTC')
+                    success_text += f"⏰ *Match Time:* `{start_time_str}`\n"
+            
+            # Add user link if provided by admin
+            if contest.user_link:
+                success_text += f"🔗 *User Link:* {contest.user_link}\n"
+            
+            success_text += (
+                f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"🍀 *Good luck!* 🍀"
+            )
+            
             await BotResponseHandler.handle_callback_response(
                 callback_query,
-                f"🎉 *Successfully Joined Contest!*\n\n"
-                f"🏆 Contest: {contest.title}\n"
-                f"💰 Entry fee: {contest.entry_fee} {contest.currency}\n"
-                f"🎯 Entry ID: {entry.id}\n\n"
-                f"Good luck!",
+                success_text,
                 InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="📊 My Contests", callback_data="my_contests")],
-                    [InlineKeyboardButton(text="🏏 More Contests", callback_data="contests")],
+                    [InlineKeyboardButton(text="💰 Check Balance", callback_data="balance")],
+                    [InlineKeyboardButton(text="📊 View My Contests", callback_data="my_contests")],
+                    [InlineKeyboardButton(text="🏏 View All Contests", callback_data="contests")],
                     [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
                 ])
             )

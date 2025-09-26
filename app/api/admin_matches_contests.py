@@ -37,6 +37,8 @@ class ContestCreate(BaseModel):
     entry_fee: str
     max_players: int = None
     prize_structure: List[Dict[str, Any]] = [{"pos": 1, "pct": 100}]
+    user_link: str = None
+    code: str
 
 
 class WinnerSelection(BaseModel):
@@ -175,10 +177,23 @@ async def create_contest_for_match(
                 detail={"error": "Match not found"}
             )
         
-        # Generate unique contest code
-        import random
-        import string
-        contest_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+        # Validate code length
+        if len(payload.code) > 56:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"error": "Contest code must be 56 characters or less"}
+            )
+        
+        # Check if code already exists
+        existing_contest_stmt = select(Contest).where(Contest.code == payload.code)
+        existing_contest_result = await db.execute(existing_contest_stmt)
+        existing_contest = existing_contest_result.scalar_one_or_none()
+        
+        if existing_contest:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"error": "Contest code already exists. Please choose a different code."}
+            )
         
         # Ensure default prize structure (100% to 1st rank only)
         # Always use 100% for rank 1, regardless of what's sent from frontend
@@ -187,8 +202,9 @@ async def create_contest_for_match(
         # Create new contest
         contest = Contest(
             match_id=match_id,
-            code=contest_code,
+            code=payload.code,
             title=payload.title,
+            user_link=payload.user_link,
             entry_fee=float(payload.entry_fee),
             max_players=payload.max_players,
             prize_structure=prize_structure,
