@@ -482,28 +482,27 @@ async def withdraw_command(message: Message, state: FSMContext):
             if not wallet:
                 wallet = await create_wallet_for_user(session, user.id)
             
-            # Check if user has sufficient WINNING balance (only winning balance can be withdrawn)
-            winning_balance = wallet.winning_balance
-            if winning_balance <= 0:
+            # Check if user has sufficient balance
+            total_balance = wallet.deposit_balance + wallet.winning_balance + wallet.bonus_balance
+            if total_balance <= 0:
                 await message.answer(
-                    "❌ Insufficient winning balance for withdrawal.\n\n"
-                    "You can only withdraw from your winning balance.\n"
-                    "Win contests to earn withdrawable funds!",
+                    "❌ Insufficient balance for withdrawal.\n\n"
+                    "You need to deposit funds first before you can withdraw.",
                     reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                        [InlineKeyboardButton(text="🏏 Join Contests", callback_data="contests")],
+                        [InlineKeyboardButton(text="💳 Deposit", callback_data="deposit")],
                         [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
                     ])
                 )
                 return
             
-            # Show withdrawal amount options (only from winning balance)
+            # Show withdrawal amount options
             withdraw_text = (
                 f"💸 *Withdrawal Request*\n\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"🏆 *Winning Balance (Withdrawable):* `{winning_balance} {settings.currency}`\n"
-                f"💳 *Deposit Balance:* `{wallet.deposit_balance} {settings.currency}` (Not withdrawable)\n"
-                f"🎁 *Bonus Balance:* `{wallet.bonus_balance} {settings.currency}` (Not withdrawable)\n\n"
-                f"ℹ️ *Note:* Only winning balance can be withdrawn.\n"
+                f"💰 *Available Balance:* `{total_balance} {settings.currency}`\n"
+                f"💳 *Deposit Balance:* `{wallet.deposit_balance} {settings.currency}`\n"
+                f"🏆 *Winning Balance:* `{wallet.winning_balance} {settings.currency}`\n"
+                f"🎁 *Bonus Balance:* `{wallet.bonus_balance} {settings.currency}`\n\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"💡 *Choose withdrawal amount:*"
             )
@@ -511,10 +510,10 @@ async def withdraw_command(message: Message, state: FSMContext):
             # Create amount selection keyboard
             keyboard_buttons = []
             
-            # Quick amount options - check against winning balance only
+            # Quick amount options
             quick_amounts = [10, 25, 50, 100]
             for amount in quick_amounts:
-                if amount <= winning_balance:
+                if amount <= total_balance:
                     keyboard_buttons.append([
                         InlineKeyboardButton(
                             text=f"${amount} {settings.currency}",
@@ -631,301 +630,3 @@ async def help_command(message: Message):
     ])
     
     await message.answer(help_text, reply_markup=keyboard, parse_mode="Markdown")
-
-
-@user_router.message(UserStates.waiting_for_invite_code)
-async def handle_invite_code_input(message: Message, state: FSMContext):
-    """Handle invitation code input from user"""
-    invite_code = message.text.strip()
-    
-    try:
-        # Process the invitation code
-        await handle_user_start(
-            telegram_id=message.from_user.id,
-            username=message.from_user.username or "Unknown",
-            chat_id=message.chat.id,
-            invite_code=invite_code,
-            message=message
-        )
-        
-        # Clear the state
-        await state.clear()
-        
-    except Exception as e:
-        logger.error(f"Error processing invite code: {e}")
-        await message.answer(
-            "❌ Sorry, there was an error processing your invitation code.\n\n"
-            "Please try again or contact support if the issue persists.",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🔄 Try Again", callback_data="enter_invite_code")],
-                [InlineKeyboardButton(text="🆘 Contact Support", callback_data="support")]
-            ])
-        )
-
-
-@user_router.message(UserStates.waiting_for_withdrawal_amount)
-async def handle_withdraw_amount_input(message: Message, state: FSMContext):
-    """Handle custom withdraw amount input from user"""
-    try:
-        amount_text = message.text.strip()
-        amount = float(amount_text)
-        
-        if amount <= 0:
-            await message.answer(
-                "❌ Invalid amount! Please enter a positive number.",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="🔄 Try Again", callback_data="withdraw_custom_amount")],
-                    [InlineKeyboardButton(text="❌ Cancel", callback_data="withdraw_cancel")]
-                ])
-            )
-            return
-        
-        async with async_session() as session:
-            user = await get_user_by_telegram_id(session, message.from_user.id)
-            wallet = await get_wallet_for_user(session, user.id)
-            total_balance = wallet.deposit_balance + wallet.winning_balance + wallet.bonus_balance
-            
-            if amount > total_balance:
-                await message.answer(
-                    f"❌ Insufficient balance!\n\n"
-                    f"Requested: ${amount} {settings.currency}\n"
-                    f"Available: ${total_balance} {settings.currency}\n\n"
-                    "Please choose a smaller amount or deposit more funds.",
-                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                        [InlineKeyboardButton(text="🔄 Try Again", callback_data="withdraw_custom_amount")],
-                        [InlineKeyboardButton(text="💳 Deposit", callback_data="deposit")],
-                        [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
-                    ])
-                )
-                return
-            
-            # Process withdrawal request - SAVE TO DATABASE (Transaction table for admin dashboard)
-            from app.models.transaction import Transaction
-            from decimal import Decimal
-            
-            # For now, we'll use a placeholder address since we don't have withdrawal address input
-            # In a real implementation, you'd ask for the withdrawal address
-            withdrawal_address = "0x0000000000000000000000000000000000000000"  # Placeholder
-            
-            # Create withdrawal transaction record (admin endpoints look in Transaction table)
-            transaction = Transaction(
-                user_id=user.id,
-                tx_type="withdrawal",
-                amount=Decimal(str(amount)),
-                currency="USDT",
-                tx_metadata={
-                    "status": "pending",
-                    "withdrawal_address": withdrawal_address,
-                    "telegram_id": str(user.telegram_id)
-                }
-            )
-            session.add(transaction)
-            await session.commit()
-            await session.refresh(transaction)
-            
-            await message.answer(
-                f"💰 *Withdrawal Request Submitted!*\n\n"
-                f"Amount: ${amount} {settings.currency}\n"
-                f"Request ID: `{transaction.id}`\n"
-                f"Status: Pending approval\n\n"
-                f"Your withdrawal request has been submitted and will be processed within 24 hours.\n\n"
-                f"Contact support if you have any questions.",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="📊 Check Status", callback_data="withdrawal_status")],
-                    [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
-                ])
-            )
-            
-            # Clear the state
-            await state.clear()
-            
-    except ValueError:
-        await message.answer(
-            "❌ Invalid amount format! Please enter a valid number.\n\n"
-            "Example: `25.50` or `100`",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🔄 Try Again", callback_data="withdraw_custom_amount")],
-                [InlineKeyboardButton(text="❌ Cancel", callback_data="withdraw_cancel")]
-            ])
-        )
-    except Exception as e:
-        logger.error(f"Error processing withdraw amount: {e}")
-        await message.answer(
-            "❌ Sorry, there was an error processing your withdrawal request.\n\n"
-            "Please try again or contact support if the issue persists.",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🔄 Try Again", callback_data="withdraw_custom_amount")],
-                [InlineKeyboardButton(text="🆘 Contact Support", callback_data="support")]
-            ])
-        )
-
-
-@user_router.message(UserStates.waiting_for_deposit_tx_hash)
-async def handle_deposit_tx_hash_input(message: Message, state: FSMContext):
-    """Handle deposit transaction hash input from user"""
-    try:
-        tx_hash = message.text.strip()
-        
-        if len(tx_hash) < 10:
-            await message.answer(
-                "❌ Invalid transaction hash! Please enter a valid transaction hash.",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="🔄 Try Again", callback_data="submit_deposit_tx")],
-                    [InlineKeyboardButton(text="❌ Cancel", callback_data="deposit")]
-                ])
-            )
-            return
-        
-        # Process the transaction hash - SAVE TO DATABASE
-        async with async_session() as session:
-            user = await get_user_by_telegram_id(session, message.from_user.id)
-            if not user:
-                await message.answer("❌ User not found. Please use /start first.")
-                return
-            
-            # Generate deposit reference
-            from app.repos.deposit_repo import generate_deposit_reference, create_deposit_transaction
-            deposit_reference = await generate_deposit_reference(session, user.id)
-            
-            # Create deposit transaction record
-            # Note: We don't have the actual amount from user input, so we'll set it to 0 for manual verification
-            transaction = await create_deposit_transaction(
-                session=session,
-                user_id=user.id,
-                amount=0.0,  # Will be updated by admin after verification
-                tx_hash=tx_hash,
-                deposit_reference=deposit_reference,
-                confirmations=0
-            )
-            
-            await message.answer(
-                f"✅ *Transaction Hash Submitted!*\n\n"
-                f"Transaction: `{tx_hash}`\n"
-                f"Reference: `{deposit_reference}`\n"
-                f"Status: Pending verification\n\n"
-                f"Your deposit will be processed within 15-30 minutes after blockchain confirmation.\n\n"
-                f"You will receive a notification once the deposit is credited to your account.",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="💰 Check Balance", callback_data="balance")],
-                    [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
-                ])
-            )
-        
-        # Clear the state
-        await state.clear()
-        
-    except Exception as e:
-        logger.error(f"Error processing deposit tx hash: {e}")
-        await message.answer(
-            "❌ Sorry, there was an error processing your transaction hash.\n\n"
-            "Please try again or contact support if the issue persists.",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🔄 Try Again", callback_data="submit_deposit_tx")],
-                [InlineKeyboardButton(text="🆘 Contact Support", callback_data="support")]
-            ])
-        )
-
-
-@user_router.message(UserStates.waiting_for_withdrawal_address)
-async def handle_withdrawal_address_input(message: Message, state: FSMContext):
-    """Handle withdrawal address input from user"""
-    try:
-        withdrawal_address = message.text.strip()
-        
-        # Basic BEP20 address validation (starts with 0x and has 42 characters)
-        if not withdrawal_address.startswith('0x') or len(withdrawal_address) != 42:
-            await message.answer(
-                "❌ Invalid BEP20 address format!\n\n"
-                "Please enter a valid BEP20 wallet address.\n"
-                "Example: `0x1234567890123456789012345678901234567890`",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="🔄 Try Again", callback_data="withdraw")],
-                    [InlineKeyboardButton(text="❌ Cancel", callback_data="withdraw_cancel")]
-                ])
-            )
-            return
-        
-        # Get withdrawal amount from state
-        data = await state.get_data()
-        amount = data.get('withdrawal_amount')
-        
-        if not amount:
-            await message.answer(
-                "❌ Error: Withdrawal amount not found. Please start over.",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="🔄 Try Again", callback_data="withdraw")],
-                    [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
-                ])
-            )
-            await state.clear()
-            return
-        
-        async with async_session() as session:
-            user = await get_user_by_telegram_id(session, message.from_user.id)
-            if not user:
-                await message.answer("❌ User not found. Please use /start first.")
-                return
-            
-            # HOLD the funds in the wallet (so user can't use them for contests)
-            from app.repos.wallet_repo import process_withdrawal_hold_atomic
-            success, error = await process_withdrawal_hold_atomic(
-                session=session,
-                user_id=user.id,
-                amount=Decimal(str(amount))
-            )
-            
-            if not success:
-                await message.answer(
-                    f"❌ Failed to process withdrawal request: {error}",
-                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                        [InlineKeyboardButton(text="🔄 Try Again", callback_data="withdraw")],
-                        [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
-                    ])
-                )
-                return
-            
-            # Create withdrawal transaction record
-            from app.models.transaction import Transaction
-            transaction = Transaction(
-                user_id=user.id,
-                tx_type="withdrawal",
-                amount=Decimal(str(amount)),
-                currency="USDT",
-                tx_metadata={
-                    "status": "pending",
-                    "withdrawal_address": withdrawal_address,
-                    "telegram_id": str(user.telegram_id),
-                    "funds_held": True  # Mark that funds are held
-                }
-            )
-            session.add(transaction)
-            await session.commit()
-            await session.refresh(transaction)
-            
-            await message.answer(
-                f"💰 *Withdrawal Request Submitted!*\n\n"
-                f"Amount: ${amount} {settings.currency}\n"
-                f"Address: `{withdrawal_address}`\n"
-                f"Request ID: `{transaction.id}`\n"
-                f"Status: Pending approval\n\n"
-                f"Your withdrawal request has been submitted and will be processed within 24 hours.\n\n"
-                f"Contact support if you have any questions.",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="📊 Check Status", callback_data="withdrawal_status")],
-                    [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
-                ])
-            )
-            
-            # Clear the state
-            await state.clear()
-            
-    except Exception as e:
-        logger.error(f"Error processing withdrawal address: {e}")
-        await message.answer(
-            "❌ Sorry, there was an error processing your withdrawal request.\n\n"
-            "Please try again or contact support if the issue persists.",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🔄 Try Again", callback_data="withdraw")],
-                [InlineKeyboardButton(text="🆘 Contact Support", callback_data="support")]
-            ])
-        )

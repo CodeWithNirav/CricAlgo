@@ -10,11 +10,12 @@ from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import get_current_user
+from app.core.auth import get_current_user, get_current_admin
 from app.db.session import get_db
-from app.repos.wallet_repo import get_wallet_for_user
+from app.repos.wallet_repo import get_wallet_for_user, credit_deposit_atomic, credit_winning_atomic, update_balances_atomic
 from app.repos.transaction_repo import create_transaction
 from app.models.user import User
+from app.models.admin import Admin
 from app.tasks.tasks import process_withdrawal
 
 router = APIRouter()
@@ -189,3 +190,187 @@ async def get_wallet_transactions(
         "limit": limit,
         "offset": offset
     }
+
+
+# Admin Wallet Management Endpoints
+class AdminCreditDepositRequest(BaseModel):
+    """Admin credit deposit request model"""
+    user_id: str = Field(..., description="User ID")
+    amount: str = Field(..., description="Amount to credit")
+    tx_hash: Optional[str] = Field(None, description="Transaction hash")
+    notes: Optional[str] = Field(None, description="Admin notes")
+
+
+class AdminCreditWinningRequest(BaseModel):
+    """Admin credit winning request model"""
+    user_id: str = Field(..., description="User ID")
+    amount: str = Field(..., description="Amount to credit")
+    reason: str = Field(..., description="Reason for credit")
+    notes: Optional[str] = Field(None, description="Admin notes")
+
+
+class AdminUpdateBalancesRequest(BaseModel):
+    """Admin update balances request model"""
+    user_id: str = Field(..., description="User ID")
+    deposit_delta: str = Field(default="0", description="Deposit balance change")
+    winning_delta: str = Field(default="0", description="Winning balance change")
+    bonus_delta: str = Field(default="0", description="Bonus balance change")
+    notes: Optional[str] = Field(None, description="Admin notes")
+
+
+@router.post("/admin/credit-deposit")
+async def admin_credit_deposit(
+    request: AdminCreditDepositRequest,
+    current_admin: Admin = Depends(get_current_admin),
+    session: AsyncSession = Depends(get_db)
+):
+    """Admin endpoint to credit user's deposit balance"""
+    try:
+        from decimal import Decimal
+        from uuid import UUID
+        
+        user_id = UUID(request.user_id)
+        amount = Decimal(request.amount)
+        
+        if amount <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Amount must be positive"
+            )
+        
+        success, error, new_balance = await credit_deposit_atomic(
+            session=session,
+            user_id=user_id,
+            amount=amount,
+            tx_hash=request.tx_hash
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error
+            )
+        
+        return {
+            "success": True,
+            "message": f"Successfully credited {amount} to user {request.user_id}",
+            "new_balance": str(new_balance),
+            "admin_id": str(current_admin.id)
+        }
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid input: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to credit deposit: {str(e)}"
+        )
+
+
+@router.post("/admin/credit-winning")
+async def admin_credit_winning(
+    request: AdminCreditWinningRequest,
+    current_admin: Admin = Depends(get_current_admin),
+    session: AsyncSession = Depends(get_db)
+):
+    """Admin endpoint to credit user's winning balance"""
+    try:
+        from decimal import Decimal
+        from uuid import UUID
+        
+        user_id = UUID(request.user_id)
+        amount = Decimal(request.amount)
+        
+        if amount <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Amount must be positive"
+            )
+        
+        success, error, new_balance = await credit_winning_atomic(
+            session=session,
+            user_id=user_id,
+            amount=amount,
+            reason=request.reason,
+            meta={"admin_id": str(current_admin.id), "notes": request.notes}
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error
+            )
+        
+        return {
+            "success": True,
+            "message": f"Successfully credited {amount} to user {request.user_id}",
+            "new_balance": str(new_balance),
+            "admin_id": str(current_admin.id)
+        }
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid input: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to credit winning: {str(e)}"
+        )
+
+
+@router.post("/admin/update-balances")
+async def admin_update_balances(
+    request: AdminUpdateBalancesRequest,
+    current_admin: Admin = Depends(get_current_admin),
+    session: AsyncSession = Depends(get_db)
+):
+    """Admin endpoint to update user's wallet balances"""
+    try:
+        from decimal import Decimal
+        from uuid import UUID
+        
+        user_id = UUID(request.user_id)
+        deposit_delta = Decimal(request.deposit_delta)
+        winning_delta = Decimal(request.winning_delta)
+        bonus_delta = Decimal(request.bonus_delta)
+        
+        success, error = await update_balances_atomic(
+            session=session,
+            user_id=user_id,
+            deposit_delta=deposit_delta,
+            winning_delta=winning_delta,
+            bonus_delta=bonus_delta
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error
+            )
+        
+        return {
+            "success": True,
+            "message": f"Successfully updated balances for user {request.user_id}",
+            "changes": {
+                "deposit_delta": str(deposit_delta),
+                "winning_delta": str(winning_delta),
+                "bonus_delta": str(bonus_delta)
+            },
+            "admin_id": str(current_admin.id)
+        }
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid input: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update balances: {str(e)}"
+        )

@@ -17,6 +17,8 @@ services:
       - redis
       - postgres
     restart: unless-stopped
+    volumes:
+      - .:/app
     networks:
       - default
 

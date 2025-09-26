@@ -70,7 +70,7 @@ async def list_deposits(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail={"error": f"Failed to fetch deposits: {str(e)}"}
+            detail=f"Failed to fetch deposits: {str(e)}"
         )
 
 @router.get("/withdrawals")
@@ -129,7 +129,7 @@ async def list_withdrawals(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail={"error": f"Failed to fetch withdrawals: {str(e)}"}
+            detail=f"Failed to fetch withdrawals: {str(e)}"
         )
 
 @router.get("/audit")
@@ -159,7 +159,7 @@ async def list_audit_logs(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail={"error": f"Failed to fetch audit logs: {str(e)}"}
+            detail=f"Failed to fetch audit logs: {str(e)}"
         )
 
 @router.post("/deposits/{deposit_id}/approve")
@@ -198,7 +198,7 @@ async def approve_deposit(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail={"error": f"Failed to approve deposit: {str(e)}"}
+            detail=f"Failed to approve deposit: {str(e)}"
         )
 
 @router.post("/deposits/{deposit_id}/reject")
@@ -237,7 +237,7 @@ async def reject_deposit(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail={"error": f"Failed to reject deposit: {str(e)}"}
+            detail=f"Failed to reject deposit: {str(e)}"
         )
 
 @router.post("/withdrawals/{withdrawal_id}/approve")
@@ -249,7 +249,67 @@ async def approve_withdrawal(
 ):
     """Approve a withdrawal"""
     try:
-        # Update transaction status in metadata
+        from uuid import UUID
+        from decimal import Decimal
+        from app.repos.wallet_repo import get_wallet_for_user, complete_withdrawal_atomic
+        
+        # Get the withdrawal transaction
+        withdrawal = await db.get(Transaction, UUID(withdrawal_id))
+        if not withdrawal or withdrawal.tx_type != "withdrawal":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Withdrawal not found"
+            )
+        
+        # Check if already processed
+        if withdrawal.tx_metadata and withdrawal.tx_metadata.get("status") == "confirmed":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Withdrawal already approved"
+            )
+        
+        # Get user's wallet
+        wallet = await get_wallet_for_user(db, withdrawal.user_id)
+        if not wallet:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User wallet not found"
+            )
+        
+        # Check if user has sufficient balance
+        total_balance = wallet.deposit_balance + wallet.winning_balance + wallet.bonus_balance
+        if total_balance < withdrawal.amount:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Insufficient balance. Available: {total_balance}, Required: {withdrawal.amount}"
+            )
+        
+        # Check if funds were held (new system) or need to be debited directly (old system)
+        if withdrawal.tx_metadata and withdrawal.tx_metadata.get("funds_held"):
+            # New system: Complete the withdrawal (debit from held balance)
+            success, error = await complete_withdrawal_atomic(
+                session=db,
+                user_id=withdrawal.user_id,
+                amount=withdrawal.amount
+            )
+        else:
+            # Old system: Debit directly from winning balance
+            from app.repos.wallet_repo import update_balances_atomic
+            success, error = await update_balances_atomic(
+                session=db,
+                user_id=withdrawal.user_id,
+                deposit_delta=Decimal('0'),
+                winning_delta=-withdrawal.amount,  # Debit from winning balance
+                bonus_delta=Decimal('0')
+            )
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Failed to process withdrawal: {error}"
+            )
+        
+        # Update transaction status
         from sqlalchemy import text
         stmt = update(Transaction).where(
             and_(
@@ -264,19 +324,21 @@ async def approve_withdrawal(
         audit_log = AuditLog(
             admin_id=current_admin.id,
             action="approve_withdrawal",
-            details={"note": note, "transaction_id": withdrawal_id}
+            details={"note": note, "transaction_id": withdrawal_id, "amount": str(withdrawal.amount)}
         )
         db.add(audit_log)
         
         await db.commit()
         
-        return {"success": True, "message": f"Withdrawal {withdrawal_id} approved successfully!"}
+        return {"success": True, "message": f"Withdrawal {withdrawal_id} approved and processed successfully!"}
         
+    except HTTPException:
+        raise
     except Exception as e:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail={"error": f"Failed to approve withdrawal: {str(e)}"}
+            detail=f"Failed to approve withdrawal: {str(e)}"
         )
 
 @router.post("/withdrawals/{withdrawal_id}/reject")
@@ -288,6 +350,31 @@ async def reject_withdrawal(
 ):
     """Reject a withdrawal"""
     try:
+        from uuid import UUID
+        from app.repos.wallet_repo import release_withdrawal_hold_atomic
+        
+        # Get the withdrawal transaction
+        withdrawal = await db.get(Transaction, UUID(withdrawal_id))
+        if not withdrawal or withdrawal.tx_type != "withdrawal":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Withdrawal not found"
+            )
+        
+        # Release the held funds back to winning balance
+        if withdrawal.tx_metadata and withdrawal.tx_metadata.get("funds_held"):
+            success, error = await release_withdrawal_hold_atomic(
+                session=db,
+                user_id=withdrawal.user_id,
+                amount=withdrawal.amount
+            )
+            
+            if not success:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Failed to release held funds: {error}"
+                )
+        
         # Update transaction status in metadata
         from sqlalchemy import text
         stmt = update(Transaction).where(
@@ -303,7 +390,7 @@ async def reject_withdrawal(
         audit_log = AuditLog(
             admin_id=current_admin.id,
             action="reject_withdrawal",
-            details={"note": note, "transaction_id": withdrawal_id}
+            details={"note": note, "transaction_id": withdrawal_id, "amount": str(withdrawal.amount)}
         )
         db.add(audit_log)
         
@@ -315,7 +402,7 @@ async def reject_withdrawal(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail={"error": f"Failed to reject withdrawal: {str(e)}"}
+            detail=f"Failed to reject withdrawal: {str(e)}"
         )
 
 # Keep the old fake endpoints for backward compatibility but mark them as deprecated

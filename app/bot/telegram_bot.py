@@ -15,7 +15,8 @@ from app.core.config import settings
 from app.core.redis_client import get_redis_client
 from app.bot.handlers.commands import user_router
 from app.bot.handlers.admin_commands import admin_router
-from app.bot.handlers.callbacks import callback_router
+from app.bot.handlers.unified_callbacks import unified_callback_router
+from app.bot.handlers.contest_callbacks import contest_callback_router
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -94,7 +95,8 @@ def create_dispatcher() -> Dispatcher:
     # Register routers
     dp.include_router(user_router)
     dp.include_router(admin_router)
-    dp.include_router(callback_router)
+    dp.include_router(unified_callback_router)
+    dp.include_router(contest_callback_router)
     
     return dp
 
