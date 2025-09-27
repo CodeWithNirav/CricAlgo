@@ -161,6 +161,52 @@ app.include_router(admin_manage_router)
 # Mount static files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
+# Add admin creation endpoint
+@app.post("/create-admin")
+async def create_admin_endpoint():
+    """Create admin account via API"""
+    try:
+        import subprocess
+        import os
+        
+        # Set environment variables for the script
+        env = os.environ.copy()
+        env['SEED_ADMIN_USERNAME'] = 'admin'
+        env['SEED_ADMIN_EMAIL'] = 'admin@cricalgo.com'
+        env['SEED_ADMIN_PASSWORD'] = 'admin123'
+        
+        # Run the admin creation script
+        result = subprocess.run(
+            ["python", "scripts/create_admin.py"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            env=env
+        )
+        
+        if result.returncode == 0:
+            return {
+                "success": True,
+                "message": "Admin account created successfully",
+                "output": result.stdout,
+                "credentials": {
+                    "username": "admin",
+                    "email": "admin@cricalgo.com",
+                    "password": "admin123"
+                }
+            }
+        else:
+            return {
+                "success": False,
+                "error": result.stderr,
+                "output": result.stdout
+            }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
 # Add direct admin route
 @app.get("/admin", response_class=HTMLResponse)
 async def admin_dashboard():
