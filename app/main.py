@@ -153,7 +153,7 @@ app.include_router(admin_router, prefix="/api/v1", tags=["admin"])
 app.include_router(admin_contest_router, prefix="/api/v1/admin", tags=["admin-contest"])
 app.include_router(debug_router, prefix="/api/v1/debug", tags=["debug"])
 app.include_router(test_contest_router, prefix="/api/v1/test", tags=["test"])
-app.include_router(admin_ui_router, tags=["admin-ui"])
+# app.include_router(admin_ui_router, tags=["admin-ui"])  # Commented out to avoid conflicts
 app.include_router(admin_finance_real_router, tags=["admin-finance"])
 app.include_router(admin_matches_contests_router, prefix="/api/v1/admin", tags=["admin-matches-contests"])
 app.include_router(admin_manage_router)
