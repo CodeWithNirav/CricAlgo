@@ -159,7 +159,7 @@ async def join_contest_callback(callback_query: CallbackQuery):
             # Add keyboard with options
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="💰 Check Balance", callback_data="balance")],
-                [InlineKeyboardButton(text="🏏 View Contests", callback_data="contests")],
+                [InlineKeyboardButton(text="🏏 View Contests", callback_data="matches")],
                 [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
             ])
             
@@ -324,7 +324,7 @@ async def contest_details_callback(callback_query: CallbackQuery):
             
             # Back to contests button
             action_buttons.append([
-                InlineKeyboardButton(text="🏏 Back to Contests", callback_data="contests"),
+                InlineKeyboardButton(text="🏏 Back to Matches", callback_data="matches"),
                 InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")
             ])
             
@@ -343,7 +343,7 @@ async def contest_details_callback(callback_query: CallbackQuery):
             "❌ An error occurred while retrieving contest details.\n\n"
             "Please try again or contact support if the issue persists.",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🔄 Try Again", callback_data="contests")],
+                [InlineKeyboardButton(text="🔄 Try Again", callback_data="matches")],
                 [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")],
                 [InlineKeyboardButton(text="🆘 Contact Support", callback_data="support")]
             ])
@@ -412,7 +412,7 @@ async def view_my_entry_callback(callback_query: CallbackQuery):
             # Action buttons
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="🏏 Contest Details", callback_data=f"contest_details:{contest.id}")],
-                [InlineKeyboardButton(text="🏏 Back to Contests", callback_data="contests")],
+                [InlineKeyboardButton(text="🏏 Back to Matches", callback_data="matches")],
                 [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
             ])
             

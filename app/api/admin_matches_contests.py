@@ -52,10 +52,10 @@ async def list_matches(
 ):
     """List all matches from database"""
     try:
-        # Query all matches from database
-        stmt = select(Match).order_by(Match.start_time.desc())
-        result = await db.execute(stmt)
-        matches = result.scalars().all()
+        from app.repos.match_repo import get_matches
+        
+        # Get all matches (including past ones for admin view)
+        matches = await get_matches(db, limit=50)
         
         # Convert to format expected by frontend
         return [match.to_dict() for match in matches]
@@ -101,11 +101,16 @@ async def create_match(
         start_time = None
         if payload.start_time:
             try:
-                start_time = datetime.fromisoformat(payload.start_time.replace('Z', '+00:00'))
+                import pytz
+                ist_tz = pytz.timezone('Asia/Kolkata')
+                # Parse as IST time and convert to UTC for storage
+                start_time_ist = datetime.fromisoformat(payload.start_time.replace('Z', ''))
+                start_time_ist = ist_tz.localize(start_time_ist)
+                start_time = start_time_ist.astimezone(pytz.UTC)
             except ValueError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail={"error": "Invalid start_time format. Use ISO format (YYYY-MM-DDTHH:MM:SSZ)"}
+                    detail={"error": "Invalid start_time format. Use ISO format (YYYY-MM-DDTHH:MM:SS)"}
                 )
         
         # Create new match
@@ -509,3 +514,65 @@ async def export_contest_pl(contest_id: str):
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename=contest_{contest_id}_pl.csv"}
     )
+
+
+@router.post("/matches/{match_id}/finish")
+async def mark_match_as_finished(
+    match_id: str,
+    current_admin: Admin = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Mark a match as finished (admin action)"""
+    try:
+        # Verify match exists
+        match_stmt = select(Match).where(Match.id == match_id)
+        match_result = await db.execute(match_stmt)
+        match = match_result.scalar_one_or_none()
+        
+        if not match:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "Match not found"}
+            )
+        
+        # Check if match is already finished
+        if match.status == 'finished':
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"error": "Match is already finished"}
+            )
+        
+        # Update match status to finished
+        match.status = 'finished'
+        await db.commit()
+        
+        # Create audit log
+        from app.models.audit_log import AuditLog
+        audit_log = AuditLog(
+            admin_id=current_admin.id,
+            action="mark_match_finished",
+            details={
+                "match_id": match_id,
+                "match_title": match.title,
+                "previous_status": match.status,
+                "new_status": "finished"
+            }
+        )
+        db.add(audit_log)
+        await db.commit()
+        
+        logger.info(f"Match {match_id} marked as finished by admin {current_admin.username}")
+        
+        return {
+            "message": "Match marked as finished successfully!",
+            "match": match.to_dict()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": f"Failed to mark match as finished: {str(e)}"}
+        )

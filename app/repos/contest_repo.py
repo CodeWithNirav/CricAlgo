@@ -119,20 +119,26 @@ async def get_contests(
     session: AsyncSession,
     limit: int = 50,
     offset: int = 0,
-    status: Optional[str] = None
+    status: Optional[str] = None,
+    user_id: Optional[str] = None
 ) -> List[Contest]:
     """
-    Get list of contests.
+    Get list of contests, filtering out filled contests and contests already joined by user.
     
     Args:
         session: Database session
         limit: Maximum number of contests to return
         offset: Number of contests to skip
         status: Filter by contest status
+        user_id: Optional user ID to filter out contests already joined by this user
     
     Returns:
         List of Contest instances
     """
+    from app.models.contest_entry import ContestEntry
+    from uuid import UUID
+    from sqlalchemy import func
+    
     query = select(Contest).order_by(desc(Contest.created_at))
     
     if status:
@@ -142,10 +148,49 @@ async def get_contests(
         else:
             query = query.where(Contest.status == ContestStatus(status))
     
-    query = query.limit(limit).offset(offset)
-    
     result = await session.execute(query)
-    return result.scalars().all()
+    contests = result.scalars().all()
+    
+    # Filter out filled contests and user-joined contests
+    filtered_contests = []
+    
+    for contest in contests:
+        # Check if contest is filled
+        if contest.max_players:
+            # Get current participant count
+            participant_count_result = await session.execute(
+                select(func.count(ContestEntry.id))
+                .where(ContestEntry.contest_id == contest.id)
+            )
+            participant_count = participant_count_result.scalar() or 0
+            
+            # Skip if contest is filled
+            if participant_count >= contest.max_players:
+                continue
+        
+        # Check if user has already joined this contest
+        if user_id:
+            try:
+                user_uuid = UUID(user_id)
+                existing_entry_result = await session.execute(
+                    select(ContestEntry).where(
+                        ContestEntry.contest_id == contest.id,
+                        ContestEntry.user_id == user_uuid
+                    )
+                )
+                if existing_entry_result.scalar_one_or_none():
+                    continue  # Skip contests already joined by user
+            except ValueError:
+                # Invalid user_id format, skip user filtering
+                pass
+        
+        filtered_contests.append(contest)
+        
+        # Apply limit after filtering
+        if len(filtered_contests) >= limit:
+            break
+    
+    return filtered_contests
 
 
 async def join_contest(

@@ -74,7 +74,7 @@ async def join_contest_callback(callback_query: CallbackQuery):
                 await callback_query.message.edit_text(
                     "❌ Contest not found or no longer available.",
                     reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                        [InlineKeyboardButton(text="🏏 Back to Contests", callback_data="contests")],
+                        [InlineKeyboardButton(text="🏏 Back to Matches", callback_data="matches")],
                         [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
                     ])
                 )
@@ -85,7 +85,7 @@ async def join_contest_callback(callback_query: CallbackQuery):
                 await callback_query.message.edit_text(
                     f"❌ Contest is {contest.status} and cannot be joined.",
                     reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                        [InlineKeyboardButton(text="🏏 Back to Contests", callback_data="contests")],
+                        [InlineKeyboardButton(text="🏏 Back to Matches", callback_data="matches")],
                         [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
                     ])
                 )
@@ -98,7 +98,7 @@ async def join_contest_callback(callback_query: CallbackQuery):
                     await callback_query.message.edit_text(
                         "❌ Contest is full. Cannot join.",
                         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                            [InlineKeyboardButton(text="🏏 Back to Contests", callback_data="contests")],
+                            [InlineKeyboardButton(text="🏏 Back to Matches", callback_data="matches")],
                             [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
                         ])
                     )
@@ -126,7 +126,7 @@ async def join_contest_callback(callback_query: CallbackQuery):
                     reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                         [InlineKeyboardButton(text="💳 Deposit", callback_data="deposit")],
                         [InlineKeyboardButton(text="💰 Check Balance", callback_data="balance")],
-                        [InlineKeyboardButton(text="🏏 Back to Contests", callback_data="contests")]
+                        [InlineKeyboardButton(text="🏏 Back to Matches", callback_data="matches")]
                     ])
                 )
                 return
@@ -140,7 +140,7 @@ async def join_contest_callback(callback_query: CallbackQuery):
                     "⚠️ You have already joined this contest.",
                     reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                         [InlineKeyboardButton(text="📊 View My Contests", callback_data="my_contests")],
-                        [InlineKeyboardButton(text="🏏 Back to Contests", callback_data="contests")]
+                        [InlineKeyboardButton(text="🏏 Back to Matches", callback_data="matches")]
                     ])
                 )
                 return
@@ -219,7 +219,7 @@ async def join_contest_callback(callback_query: CallbackQuery):
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="💰 Check Balance", callback_data="balance")],
                 [InlineKeyboardButton(text="📊 View My Contests", callback_data="my_contests")],
-                [InlineKeyboardButton(text="🏏 View All Contests", callback_data="contests")],
+                [InlineKeyboardButton(text="🏏 View All Contests", callback_data="matches")],
                 [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
             ])
             
@@ -230,7 +230,7 @@ async def join_contest_callback(callback_query: CallbackQuery):
         await callback_query.message.edit_text(
             "❌ Invalid contest ID format.",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🏏 Back to Contests", callback_data="contests")],
+                [InlineKeyboardButton(text="🏏 Back to Matches", callback_data="matches")],
                 [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
             ])
         )
@@ -241,7 +241,7 @@ async def join_contest_callback(callback_query: CallbackQuery):
             "Please try again or contact support if the issue persists.",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="🔄 Try Again", callback_data=f"join_contest:{contest_id_str}")],
-                [InlineKeyboardButton(text="🏏 Back to Contests", callback_data="contests")],
+                [InlineKeyboardButton(text="🏏 Back to Matches", callback_data="matches")],
                 [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")],
                 [InlineKeyboardButton(text="🆘 Contact Support", callback_data="support")]
             ])
@@ -265,7 +265,7 @@ async def contest_details_callback(callback_query: CallbackQuery):
                 await callback_query.message.edit_text(
                     "❌ Contest not found or no longer available.",
                     reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                        [InlineKeyboardButton(text="🏏 Back to Contests", callback_data="contests")],
+                        [InlineKeyboardButton(text="🏏 Back to Matches", callback_data="matches")],
                         [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
                     ])
                 )
@@ -364,7 +364,7 @@ async def contest_details_callback(callback_query: CallbackQuery):
             
             # Back to contests button
             action_buttons.append([
-                InlineKeyboardButton(text="🏏 Back to Contests", callback_data="contests"),
+                InlineKeyboardButton(text="🏏 Back to Matches", callback_data="matches"),
                 InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")
             ])
             
@@ -377,7 +377,7 @@ async def contest_details_callback(callback_query: CallbackQuery):
         await callback_query.message.edit_text(
             "❌ Invalid contest ID format.",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🏏 Back to Contests", callback_data="contests")],
+                [InlineKeyboardButton(text="🏏 Back to Matches", callback_data="matches")],
                 [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
             ])
         )
@@ -387,7 +387,7 @@ async def contest_details_callback(callback_query: CallbackQuery):
             "❌ An error occurred while retrieving contest details.\n\n"
             "Please try again or contact support if the issue persists.",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🔄 Try Again", callback_data="contests")],
+                [InlineKeyboardButton(text="🔄 Try Again", callback_data="matches")],
                 [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")],
                 [InlineKeyboardButton(text="🆘 Contact Support", callback_data="support")]
             ])
@@ -422,7 +422,7 @@ async def view_my_entry_callback(callback_query: CallbackQuery):
                 await callback_query.message.edit_text(
                     "❌ Contest not found.",
                     reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                        [InlineKeyboardButton(text="🏏 Back to Contests", callback_data="contests")],
+                        [InlineKeyboardButton(text="🏏 Back to Matches", callback_data="matches")],
                         [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
                     ])
                 )
@@ -436,7 +436,7 @@ async def view_my_entry_callback(callback_query: CallbackQuery):
                     "❌ You haven't joined this contest yet.",
                     reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                         [InlineKeyboardButton(text="🎯 Join Contest", callback_data=f"join_contest:{contest.id}")],
-                        [InlineKeyboardButton(text="🏏 Back to Contests", callback_data="contests")]
+                        [InlineKeyboardButton(text="🏏 Back to Matches", callback_data="matches")]
                     ])
                 )
                 return
@@ -467,7 +467,7 @@ async def view_my_entry_callback(callback_query: CallbackQuery):
             # Action buttons
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="🏏 Contest Details", callback_data=f"contest_details:{contest.id}")],
-                [InlineKeyboardButton(text="🏏 Back to Contests", callback_data="contests")],
+                [InlineKeyboardButton(text="🏏 Back to Matches", callback_data="matches")],
                 [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
             ])
             
@@ -478,7 +478,7 @@ async def view_my_entry_callback(callback_query: CallbackQuery):
         await callback_query.message.edit_text(
             "❌ Invalid contest ID format.",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🏏 Back to Contests", callback_data="contests")],
+                [InlineKeyboardButton(text="🏏 Back to Matches", callback_data="matches")],
                 [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
             ])
         )
@@ -487,7 +487,7 @@ async def view_my_entry_callback(callback_query: CallbackQuery):
         await callback_query.message.edit_text(
             "❌ An error occurred while retrieving your entry. Please try again later.",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🏏 Back to Contests", callback_data="contests")],
+                [InlineKeyboardButton(text="🏏 Back to Matches", callback_data="matches")],
                 [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
             ])
         )

@@ -105,6 +105,16 @@ export default function Matches(){
               <div>
                 <div className="font-semibold">{m.title || `Match ${m.id}`}</div>
                 <div className="text-sm text-gray-600">{m.starts_at || "Time not set"}</div>
+                <div className="text-sm">
+                  <span className={`px-2 py-1 rounded text-xs ${
+                    m.status === 'scheduled' ? 'bg-blue-100 text-blue-800' :
+                    m.status === 'live' ? 'bg-green-100 text-green-800' :
+                    m.status === 'finished' ? 'bg-gray-100 text-gray-800' :
+                    'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {m.status?.toUpperCase() || 'UNKNOWN'}
+                  </span>
+                </div>
               </div>
               <div className="space-x-2">
                 <button 
@@ -115,6 +125,32 @@ export default function Matches(){
                 >
                   View Contests
                 </button>
+                {m.status !== 'finished' && (
+                  <button 
+                    className="text-red-600 hover:text-red-800 underline"
+                    onClick={() => {
+                      if (confirm(`Are you sure you want to mark match "${m.title}" as finished?`)) {
+                        fetch(`/api/v1/admin/matches/${m.id}/finish`, {
+                          method: "POST",
+                          headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": "Bearer " + sessionStorage.getItem("admin_token")
+                          }
+                        })
+                        .then(r => r.json())
+                        .then(data => {
+                          alert("Match marked as finished successfully!");
+                          window.location.reload();
+                        })
+                        .catch(err => {
+                          alert("Error finishing match: " + err.message);
+                        });
+                      }
+                    }}
+                  >
+                    Finish Match
+                  </button>
+                )}
               </div>
             </div>
           </li>

@@ -173,7 +173,7 @@ async def handle_user_start(telegram_id: int, username: str, chat_id: int, invit
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="💰 Balance", callback_data="balance")],
                 [InlineKeyboardButton(text="💳 Deposit", callback_data="deposit")],
-                [InlineKeyboardButton(text="🏏 Contests", callback_data="contests")],
+                [InlineKeyboardButton(text="🏏 Matches", callback_data="matches")],
                 [InlineKeyboardButton(text="📊 My Contests", callback_data="my_contests")],
                 [InlineKeyboardButton(text="💸 Withdraw", callback_data="withdraw")],
                 [InlineKeyboardButton(text="⚙️ Settings", callback_data="settings")],
@@ -212,7 +212,7 @@ async def start_command(message: Message):
                 keyboard = InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")],
                     [InlineKeyboardButton(text="💰 Balance", callback_data="balance")],
-                    [InlineKeyboardButton(text="🏏 Contests", callback_data="contests")]
+                    [InlineKeyboardButton(text="🏏 Matches", callback_data="matches")]
                 ])
                 
                 await message.answer(
@@ -390,8 +390,8 @@ async def contests_command(message: Message):
             # Save chat ID for notifications
             await save_chat_id(session, user.id, str(message.chat.id))
             
-            # Get open contests
-            contests = await get_contests(session, limit=10, status="open")
+            # Get open contests, filtering out filled and user-joined contests
+            contests = await get_contests(session, limit=10, status="open", user_id=str(user.id))
             
             if not contests:
                 await message.answer("No contests available at the moment. Check back later!")
@@ -450,7 +450,7 @@ async def contests_command(message: Message):
             "❌ Sorry, there was an error retrieving contests.\n\n"
             "Please try again or contact support if the issue persists.",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🔄 Try Again", callback_data="contests")],
+                [InlineKeyboardButton(text="🔄 Try Again", callback_data="matches")],
                 [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")],
                 [InlineKeyboardButton(text="🆘 Contact Support", callback_data="support")]
             ])
@@ -572,7 +572,7 @@ async def menu_command(message: Message):
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="💰 Balance", callback_data="balance")],
                 [InlineKeyboardButton(text="💳 Deposit", callback_data="deposit")],
-                [InlineKeyboardButton(text="🏏 Contests", callback_data="contests")],
+                [InlineKeyboardButton(text="🏏 Matches", callback_data="matches")],
                 [InlineKeyboardButton(text="📊 My Contests", callback_data="my_contests")],
                 [InlineKeyboardButton(text="💸 Withdraw", callback_data="withdraw")],
                 [InlineKeyboardButton(text="⚙️ Settings", callback_data="settings")],
@@ -626,7 +626,7 @@ async def help_command(message: Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")],
         [InlineKeyboardButton(text="💰 Check Balance", callback_data="balance")],
-        [InlineKeyboardButton(text="🏏 View Contests", callback_data="contests")]
+        [InlineKeyboardButton(text="🏏 View Contests", callback_data="matches")]
     ])
     
     await message.answer(help_text, reply_markup=keyboard, parse_mode="Markdown")

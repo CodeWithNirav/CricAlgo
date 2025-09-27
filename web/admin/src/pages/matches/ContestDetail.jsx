@@ -92,6 +92,44 @@ export default function ContestDetail({contestId}){
       alert("Failed to select winners: " + err.message);
     }
   }
+
+  async function cancelContest(){
+    if (!contest) return;
+    
+    const confirmMessage = `Are you sure you want to cancel this contest?\n\nThis will:\n- Refund all participants their entry fees\n- Mark the contest as cancelled\n- This action cannot be undone\n\nContest: ${contest.title || contest.code}`;
+    
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/v1/admin/contest/${contestId}/cancel`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + sessionStorage.getItem("admin_token")
+        }
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        const message = `Contest cancelled successfully!\n\n` +
+          `Participants: ${result.participants}\n` +
+          `Successful refunds: ${result.successful_refunds}\n` +
+          `Failed refunds: ${result.failed_refunds}\n` +
+          `Total refunded: ${result.total_refunded} ${contest.currency}`;
+        
+        alert(message);
+        await loadContestData(); // Reload data to show updated status
+      } else {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.detail || `HTTP ${response.status}`);
+      }
+    } catch (err) {
+      console.error("Failed to cancel contest:", err);
+      alert("Failed to cancel contest: " + err.message);
+    }
+  }
   
   
   useEffect(() => {
@@ -149,6 +187,7 @@ export default function ContestDetail({contestId}){
                     contest.status === 'open' ? 'bg-green-100 text-green-800' :
                     contest.status === 'closed' ? 'bg-yellow-100 text-yellow-800' :
                     contest.status === 'settled' ? 'bg-blue-100 text-blue-800' :
+                    contest.status === 'cancelled' ? 'bg-red-100 text-red-800' :
                     'bg-gray-100 text-gray-800'
                   }`}>
                     {contest.status?.toUpperCase()}
@@ -175,10 +214,18 @@ export default function ContestDetail({contestId}){
         <button 
           onClick={selectWinners} 
           className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:bg-gray-400"
-          disabled={selected.length === 0}
+          disabled={selected.length === 0 || contest?.status === 'cancelled' || contest?.status === 'settled'}
         >
           Select Winners & Settle ({selected.length})
         </button>
+        {contest?.status !== 'cancelled' && contest?.status !== 'settled' && (
+          <button 
+            onClick={cancelContest} 
+            className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+          >
+            Cancel Contest
+          </button>
+        )}
         <a 
           className="text-blue-600 hover:text-blue-800 underline text-sm" 
           href={`/api/v1/admin/contests/${contestId}/export`}

@@ -17,7 +17,7 @@ class Match(Base):
     external_id = Column(String(128), nullable=True)
     title = Column(String(255), nullable=False)
     start_time = Column(DateTime(timezone=True), nullable=False)
-    status = Column(ENUM('scheduled', 'open', 'closed', 'cancelled', 'settled', name='contest_status'), nullable=False, default='scheduled')
+    status = Column(ENUM('scheduled', 'live', 'finished', name='match_status'), nullable=False, default='scheduled')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     def __repr__(self):
@@ -25,12 +25,26 @@ class Match(Base):
 
     def to_dict(self):
         """Convert match to dictionary for API responses"""
+        import pytz
+        
+        ist_tz = pytz.timezone('Asia/Kolkata')
+        
+        # Convert UTC times to IST for display
+        start_time_ist = None
+        created_at_ist = None
+        
+        if self.start_time:
+            start_time_ist = self.start_time.astimezone(ist_tz).isoformat()
+        
+        if self.created_at:
+            created_at_ist = self.created_at.astimezone(ist_tz).isoformat()
+        
         return {
             "id": str(self.id),
             "external_id": self.external_id,
             "title": self.title,
-            "start_time": self.start_time.isoformat() if self.start_time else None,
-            "starts_at": self.start_time.isoformat() if self.start_time else None,  # alias for frontend
+            "start_time": start_time_ist,
+            "starts_at": start_time_ist,  # alias for frontend
             "status": self.status if self.status else None,
-            "created_at": self.created_at.isoformat() if self.created_at else None
+            "created_at": created_at_ist
         }

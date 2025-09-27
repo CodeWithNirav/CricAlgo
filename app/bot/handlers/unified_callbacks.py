@@ -13,6 +13,7 @@ from app.core.config import settings
 from app.db.session import async_session
 from app.repos.user_repo import get_user_by_telegram_id
 from app.repos.contest_repo import get_contest_by_id, get_contests, get_contest_participants_count
+from app.repos.match_repo import get_matches, get_contests_for_match, get_match_by_id
 from app.repos.contest_entry_repo import create_contest_entry, get_contest_entries, get_user_contest_entries
 from app.repos.wallet_repo import get_wallet_for_user, debit_for_contest_entry, create_wallet_for_user
 from app.repos.deposit_repo import get_deposit_address_for_user
@@ -33,7 +34,7 @@ class BotUIComponents:
         return InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="💰 Balance", callback_data="balance")],
             [InlineKeyboardButton(text="💳 Deposit", callback_data="deposit")],
-            [InlineKeyboardButton(text="🏏 Contests", callback_data="contests")],
+            [InlineKeyboardButton(text="🏏 Matches", callback_data="matches")],
             [InlineKeyboardButton(text="📊 My Contests", callback_data="my_contests")],
             [InlineKeyboardButton(text="💸 Withdraw", callback_data="withdraw")],
             [InlineKeyboardButton(text="⚙️ Settings", callback_data="settings")],
@@ -222,30 +223,97 @@ async def deposit_callback(callback_query: CallbackQuery):
         await BotResponseHandler.handle_error(callback_query, "Failed to load deposit information")
 
 
-# Contests Handler
-@unified_callback_router.callback_query(F.data == "contests")
-async def contests_callback(callback_query: CallbackQuery):
-    """Handle contests callback with improved display"""
+# Matches Handler
+@unified_callback_router.callback_query(F.data == "matches")
+async def matches_callback(callback_query: CallbackQuery):
+    """Handle matches callback - shows available matches"""
     has_access, user = await check_user_access(callback_query)
     if not has_access:
         return
     
     try:
         async with async_session() as session:
-            # Get open contests
-            contests = await get_contests(session, limit=10, status='open')
+            # Get matches that are upcoming (not started and not finished)
+            matches = await get_matches(session, limit=10, upcoming_only=True)
             
-            if not contests:
-                contests_text = (
-                    "🎯 *No Contests Available*\n\n"
+            if not matches:
+                matches_text = (
+                    "🏏 *No Matches Available*\n\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "There are no open contests at the moment.\n"
-                    "Check back later for new contests!\n"
+                    "There are no upcoming matches at the moment.\n"
+                    "Check back later for new matches!\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
                 )
                 keyboard = BotUIComponents.get_back_to_main_keyboard()
             else:
-                contests_text = "🎯 *Available Contests*\n\n"
+                matches_text = "🏏 *Available Matches*\n\n"
+                keyboard_buttons = []
+                
+                for match in matches:
+                    # Format match info
+                    start_time = match.start_time.strftime("%d %b %Y, %H:%M") if match.start_time else "TBD"
+                    
+                    matches_text += (
+                        f"🏆 *{match.title}*\n"
+                        f"⏰ Start: `{start_time}`\n"
+                        f"📊 Status: `{match.status.upper()}`\n\n"
+                    )
+                    
+                    # Add match button
+                    keyboard_buttons.append([
+                        InlineKeyboardButton(
+                            text=f"🏆 {match.title}",
+                            callback_data=f"match_contests_{match.id}"
+                        )
+                    ])
+                
+                # Add navigation
+                keyboard = BotUIComponents.get_navigation_keyboard(
+                    additional_buttons=keyboard_buttons
+                )
+            
+            await BotResponseHandler.handle_callback_response(callback_query, matches_text, keyboard)
+            
+    except Exception as e:
+        await BotResponseHandler.handle_error(callback_query, "Failed to load matches")
+
+
+# Match Contests Handler
+@unified_callback_router.callback_query(F.data.startswith("match_contests_"))
+async def match_contests_callback(callback_query: CallbackQuery):
+    """Handle match contests callback - shows contests for a specific match"""
+    has_access, user = await check_user_access(callback_query)
+    if not has_access:
+        return
+    
+    try:
+        # Extract match ID from callback data
+        match_id = callback_query.data.replace("match_contests_", "")
+        
+        async with async_session() as session:
+            # Get match details
+            match = await get_match_by_id(session, match_id)
+            if not match:
+                await BotResponseHandler.handle_error(callback_query, "Match not found")
+                return
+            
+            # Get contests for this match, filtering out filled and user-joined contests
+            contests = await get_contests_for_match(session, match_id, status='open', user_id=str(user.id))
+            
+            if not contests:
+                contests_text = (
+                    f"🏏 *{match.title}*\n\n"
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    "No contests available for this match yet.\n"
+                    "Check back later for new contests!\n"
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                )
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🏏 Back to Matches", callback_data="matches")],
+                    [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
+                ])
+            else:
+                contests_text = f"🏏 *{match.title}*\n\n"
                 keyboard_buttons = []
                 
                 for contest in contests:
@@ -276,14 +344,18 @@ async def contests_callback(callback_query: CallbackQuery):
                         ])
                 
                 # Add navigation
-                keyboard = BotUIComponents.get_navigation_keyboard(
-                    additional_buttons=keyboard_buttons
-                )
+                keyboard_buttons.extend([
+                    [InlineKeyboardButton(text="🏏 Back to Matches", callback_data="matches")],
+                    [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
+                ])
+                
+                keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
             
             await BotResponseHandler.handle_callback_response(callback_query, contests_text, keyboard)
             
     except Exception as e:
-        await BotResponseHandler.handle_error(callback_query, "Failed to load contests")
+        logger.error(f"Error in match contests callback: {e}")
+        await BotResponseHandler.handle_error(callback_query, "Failed to load match contests")
 
 
 # My Contests Handler
@@ -312,7 +384,7 @@ async def my_contests_callback(callback_query: CallbackQuery):
                 )
                 keyboard = BotUIComponents.get_navigation_keyboard(
                     additional_buttons=[
-                        [InlineKeyboardButton(text="🏏 View Contests", callback_data="contests")],
+                        [InlineKeyboardButton(text="🏏 View Contests", callback_data="matches")],
                         [InlineKeyboardButton(text="📋 Closed Contests", callback_data="my_contests_closed")]
                     ]
                 )
@@ -372,7 +444,7 @@ async def my_contests_callback(callback_query: CallbackQuery):
                 # Navigation buttons
                 keyboard = BotUIComponents.get_navigation_keyboard(
                     additional_buttons=[
-                        [InlineKeyboardButton(text="🏏 View All Contests", callback_data="contests")],
+                        [InlineKeyboardButton(text="🏏 View All Contests", callback_data="matches")],
                         [InlineKeyboardButton(text="📋 Closed Contests", callback_data="my_contests_closed")]
                     ]
                 )
@@ -437,7 +509,7 @@ async def my_contests_closed_callback(callback_query: CallbackQuery):
                 keyboard = BotUIComponents.get_navigation_keyboard(
                     additional_buttons=[
                         [InlineKeyboardButton(text="🏏 Active Contests", callback_data="my_contests")],
-                        [InlineKeyboardButton(text="🏏 View All Contests", callback_data="contests")]
+                        [InlineKeyboardButton(text="🏏 View All Contests", callback_data="matches")]
                     ]
                 )
             else:
@@ -501,7 +573,7 @@ async def my_contests_closed_callback(callback_query: CallbackQuery):
                 keyboard = BotUIComponents.get_navigation_keyboard(
                     additional_buttons=[
                         [InlineKeyboardButton(text="🏏 Active Contests", callback_data="my_contests")],
-                        [InlineKeyboardButton(text="🏏 View All Contests", callback_data="contests")]
+                        [InlineKeyboardButton(text="🏏 View All Contests", callback_data="matches")]
                     ]
                 )
             
@@ -574,7 +646,7 @@ async def withdraw_amount_callback(callback_query: CallbackQuery, state: FSMCont
                     "Win contests to earn withdrawable funds!",
                     InlineKeyboardMarkup(inline_keyboard=[
                         [InlineKeyboardButton(text="🔄 Try Again", callback_data="withdraw")],
-                        [InlineKeyboardButton(text="🏏 Join Contests", callback_data="contests")],
+                        [InlineKeyboardButton(text="🏏 Join Contests", callback_data="matches")],
                         [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
                     ])
                 )
@@ -802,7 +874,7 @@ async def join_contest_callback(callback_query: CallbackQuery):
                     "Please deposit more funds to join this contest.",
                     InlineKeyboardMarkup(inline_keyboard=[
                         [InlineKeyboardButton(text="💳 Deposit", callback_data="deposit")],
-                        [InlineKeyboardButton(text="🏏 Contests", callback_data="contests")],
+                        [InlineKeyboardButton(text="🏏 Matches", callback_data="matches")],
                         [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
                     ])
                 )
@@ -817,7 +889,7 @@ async def join_contest_callback(callback_query: CallbackQuery):
                     callback_query,
                     f"❌ Error joining contest: {error}",
                     InlineKeyboardMarkup(inline_keyboard=[
-                        [InlineKeyboardButton(text="🏏 Contests", callback_data="contests")],
+                        [InlineKeyboardButton(text="🏏 Matches", callback_data="matches")],
                         [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
                     ])
                 )
@@ -869,7 +941,7 @@ async def join_contest_callback(callback_query: CallbackQuery):
                 InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="💰 Check Balance", callback_data="balance")],
                     [InlineKeyboardButton(text="📊 View My Contests", callback_data="my_contests")],
-                    [InlineKeyboardButton(text="🏏 View All Contests", callback_data="contests")],
+                    [InlineKeyboardButton(text="🏏 View All Contests", callback_data="matches")],
                     [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
                 ])
             )
@@ -976,7 +1048,7 @@ async def withdraw_callback(callback_query: CallbackQuery):
                     "You can only withdraw from your winning balance.\n"
                     "Win contests to earn withdrawable funds!",
                     InlineKeyboardMarkup(inline_keyboard=[
-                        [InlineKeyboardButton(text="🏏 Join Contests", callback_data="contests")],
+                        [InlineKeyboardButton(text="🏏 Join Contests", callback_data="matches")],
                         [InlineKeyboardButton(text="🏠 Main Menu", callback_data="main_menu")]
                     ])
                 )
