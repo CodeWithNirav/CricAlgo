@@ -161,6 +161,17 @@ app.include_router(admin_manage_router)
 # Mount static files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
+# Add direct admin route
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_dashboard():
+    """Serve admin dashboard"""
+    import os
+    index_path = os.path.join("app", "static", "admin", "index.html")
+    if os.path.exists(index_path):
+        from fastapi.responses import FileResponse
+        return FileResponse(index_path)
+    return HTMLResponse("<h1>Admin UI not found</h1>", status_code=404)
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
