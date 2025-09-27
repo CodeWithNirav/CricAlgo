@@ -166,41 +166,58 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 async def create_admin_endpoint():
     """Create admin account via API"""
     try:
-        import subprocess
-        import os
+        from app.db.session import AsyncSessionLocal
+        from app.models.admin import Admin
+        from passlib.context import CryptContext
+        import pyotp
+        import secrets
         
-        # Set environment variables for the script
-        env = os.environ.copy()
-        env['SEED_ADMIN_USERNAME'] = 'admin'
-        env['SEED_ADMIN_EMAIL'] = 'admin@cricalgo.com'
-        env['SEED_ADMIN_PASSWORD'] = 'admin123'
+        # Password hashing
+        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
         
-        # Run the admin creation script
-        result = subprocess.run(
-            ["python", "scripts/create_admin.py"],
-            capture_output=True,
-            text=True,
-            timeout=60,
-            env=env
-        )
-        
-        if result.returncode == 0:
+        async with AsyncSessionLocal() as session:
+            # Check if admin already exists
+            from sqlalchemy import select
+            result = await session.execute(select(Admin).where(Admin.username == "admin"))
+            existing_admin = result.scalar_one_or_none()
+            
+            if existing_admin:
+                return {
+                    "success": True,
+                    "message": "Admin account already exists",
+                    "credentials": {
+                        "username": "admin",
+                        "email": "admin@cricalgo.com",
+                        "password": "admin123"
+                    }
+                }
+            
+            # Create new admin
+            password_hash = pwd_context.hash("admin123")
+            totp_secret = pyotp.random_base32()
+            
+            admin = Admin(
+                username="admin",
+                email="admin@cricalgo.com",
+                password_hash=password_hash,
+                totp_secret=totp_secret
+            )
+            
+            session.add(admin)
+            await session.commit()
+            await session.refresh(admin)
+            
             return {
                 "success": True,
                 "message": "Admin account created successfully",
-                "output": result.stdout,
                 "credentials": {
                     "username": "admin",
                     "email": "admin@cricalgo.com",
                     "password": "admin123"
-                }
+                },
+                "totp_secret": totp_secret
             }
-        else:
-            return {
-                "success": False,
-                "error": result.stderr,
-                "output": result.stdout
-            }
+            
     except Exception as e:
         return {
             "success": False,
