@@ -11,6 +11,8 @@ from fastapi.responses import Response
 from fastapi import Request
 import time
 import os
+import asyncio
+import subprocess
 
 # Sentry integration
 if os.getenv("SENTRY_DSN"):
@@ -63,6 +65,25 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc"
 )
+
+# Run database migrations on startup
+@app.on_event("startup")
+async def startup_event():
+    """Run database migrations on startup"""
+    try:
+        print("🔄 Running database migrations...")
+        result = subprocess.run(
+            ["alembic", "upgrade", "head"],
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+        if result.returncode == 0:
+            print("✅ Database migrations completed successfully")
+        else:
+            print(f"⚠️ Migration warning: {result.stderr}")
+    except Exception as e:
+        print(f"⚠️ Migration error (continuing anyway): {e}")
 
 # Add CORS middleware
 app.add_middleware(
